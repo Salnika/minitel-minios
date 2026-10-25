@@ -1,0 +1,28 @@
+meta {
+  name: Create file
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{bibliotekBaseUrl}}/files
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{bibliotekApiToken}}
+  Content-Type: application/json
+  Accept: application/json
+}
+
+body:json {
+  {
+    "folder": "{{bibliotekFolder}}",
+    "name": "{{bibliotekFileName}}",
+    "content": "{{bibliotekInitialContent}}",
+    "title": "{{bibliotekInitialTitle}}",
+    "tags": ["draft"],
+    "sortOrder": 3
+  }
+}

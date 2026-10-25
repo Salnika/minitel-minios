@@ -1,0 +1,21 @@
+meta {
+  name: List all files
+  type: http
+  seq: 11
+}
+
+get {
+  url: {{bibliotekBaseUrl}}/files
+  body: none
+  auth: none
+}
+
+params:query {
+  sort: updatedAt
+  order: desc
+}
+
+headers {
+  Authorization: Bearer {{bibliotekApiToken}}
+  Accept: application/json
+}

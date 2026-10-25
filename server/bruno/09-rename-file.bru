@@ -1,0 +1,23 @@
+meta {
+  name: Rename file
+  type: http
+  seq: 9
+}
+
+post {
+  url: {{bibliotekBaseUrl}}/files/{{bibliotekFolder}}/{{bibliotekFileName}}/rename
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{bibliotekApiToken}}
+  Content-Type: application/json
+  Accept: application/json
+}
+
+body:json {
+  {
+    "newName": "{{bibliotekRenamedFileName}}"
+  }
+}

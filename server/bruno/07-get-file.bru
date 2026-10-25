@@ -1,0 +1,16 @@
+meta {
+  name: Get file
+  type: http
+  seq: 7
+}
+
+get {
+  url: {{bibliotekBaseUrl}}/files/{{bibliotekFolder}}/{{bibliotekFileName}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{bibliotekApiToken}}
+  Accept: application/json
+}

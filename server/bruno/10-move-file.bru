@@ -1,0 +1,23 @@
+meta {
+  name: Move file
+  type: http
+  seq: 10
+}
+
+post {
+  url: {{bibliotekBaseUrl}}/files/{{bibliotekFolder}}/{{bibliotekRenamedFileName}}/move
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{bibliotekApiToken}}
+  Content-Type: application/json
+  Accept: application/json
+}
+
+body:json {
+  {
+    "targetFolder": "{{bibliotekTargetFolder}}"
+  }
+}

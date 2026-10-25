@@ -1,0 +1,18 @@
+{
+  "name": "lib_minitel",
+  "version": "0.1.0",
+  "description": "Minitel toolkit for ESP32: graphics (80x75), Wi-Fi, SSH, and simple screen manager",
+  "keywords": "minitel, esp32, graphics, wifi, ssh, ui",
+  "repository": {"type": "git", "url": "https://github.com/Salnika/minitel-minios.git"},
+  "authors": [{"name": "salnika", "url": "https://github.com/Salnika"}],
+  "license": "MIT",
+  "frameworks": "arduino",
+  "platforms": ["espressif32"],
+  "headers": [
+    "lib_minitel/gfx/minigfx.h",
+    "lib_minitel/net/wifi.h",
+    "lib_minitel/ssh/ssh_client.h",
+    "lib_minitel/ui/screen_manager.h",
+    "lib_minitel/hal/bind.h"
+  ]
+}

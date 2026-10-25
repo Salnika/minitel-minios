@@ -1,0 +1,23 @@
+meta {
+  name: Create folder journal
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{bibliotekBaseUrl}}/folders
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{bibliotekApiToken}}
+  Content-Type: application/json
+  Accept: application/json
+}
+
+body:json {
+  {
+    "name": "{{bibliotekTargetFolder}}"
+  }
+}

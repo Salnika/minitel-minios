@@ -1,0 +1,16 @@
+meta {
+  name: List folders
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{bibliotekBaseUrl}}/folders
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{bibliotekApiToken}}
+  Accept: application/json
+}

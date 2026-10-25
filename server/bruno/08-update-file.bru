@@ -1,0 +1,25 @@
+meta {
+  name: Update file
+  type: http
+  seq: 8
+}
+
+put {
+  url: {{bibliotekBaseUrl}}/files/{{bibliotekFolder}}/{{bibliotekFileName}}
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{bibliotekApiToken}}
+  Content-Type: application/json
+  Accept: application/json
+}
+
+body:json {
+  {
+    "content": "{{bibliotekUpdatedContent}}",
+    "title": "{{bibliotekUpdatedTitle}}",
+    "sortOrder": 1
+  }
+}

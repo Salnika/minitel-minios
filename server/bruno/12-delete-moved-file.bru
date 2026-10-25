@@ -1,0 +1,16 @@
+meta {
+  name: Delete moved file
+  type: http
+  seq: 12
+}
+
+delete {
+  url: {{bibliotekBaseUrl}}/files/{{bibliotekTargetFolder}}/{{bibliotekRenamedFileName}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{bibliotekApiToken}}
+  Accept: application/json
+}
