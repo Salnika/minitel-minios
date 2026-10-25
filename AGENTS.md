@@ -14,7 +14,7 @@
 - Server: `server/` (Bibliotek, Node/Fastify with Vite+), outside the PlatformIO build. Check it with `vp check` and `vp test` inside `server/`; Coolify deploys it from this folder (`docs/COOLIFY.md`).
 
 ## Build, Run & Development Commands
-- Build: `pio run -e esp32dev` (uses `platformio.ini`).
+- Build: `pio run -e esp32dev` (uses `platformio.ini`), `pio run -e esp32dev_en` for the English texts.
 - Flash app: `pio run -e esp32dev -t upload --upload-port /dev/cu.usbserial-0001`.
 - Serial monitor: `pio device monitor -b 115200 -p /dev/cu.usbserial-0001`.
  
@@ -25,9 +25,10 @@
 - Identifiers: functions/vars `snake_case`; constants/macros `UPPER_CASE`; types `PascalCase` if introduced.
 - Prefer fixed-size buffers over STL containers in firmware code.
 - Keep Minitel rendering deterministic and explicit; avoid hidden clears/resets.
+- On-screen texts are written `TR("francais", "English")` (`src/app/lang.h`): French by default, English in the `_en` environments. Both take the same printf arguments and fit the same width (40 columns, the buffer they are copied to). Logs, file and folder names (`projets/`, `taches.md`), JSON fields and NVS keys are never translated, and Minitel key names (`ENVOI`, `RETOUR`...) stay as printed on the keyboard.
 
 ## Testing Guidelines
-- Native Unity tests live in `test/test_editor_layout.cpp`: it `#include`s the sources under test, stubs the Minitel UART (capturing every byte sent) and uses `test/stubs/Arduino.h` in place of the core. Run `pio test -e native`.
+- Native Unity tests live in `test/test_editor_layout.cpp`: it `#include`s the sources under test, stubs the Minitel UART (capturing every byte sent) and uses `test/stubs/Arduino.h` in place of the core. Run `pio test -e native` and `pio test -e native_en` (the same tests against the English texts: expected texts are written with `TR` too).
 - Keep hardware interactions thin; test pure logic where possible. Renderer changes should come with a byte-level test (see the `test_ui_*` cases), since they cannot be checked without the terminal. Link changes are tested against the fake Minitel of the `test_link_*` cases, which answers Protocole commands at its own speed.
 
 ## Commit & Pull Request Guidelines

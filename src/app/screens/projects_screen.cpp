@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "app/app_shell.h"
+#include "app/lang.h"
 #include "app/workspace.h"
 #include "services/clock_service.h"
 #include "storage/workspace_utils.h"
@@ -116,7 +117,7 @@ void on_projects_loaded(const net_request_t& request, const net_reply_t& reply) 
       if (strcmp(g_projects.projects[i].name, g_projects.open_after_load) == 0) {
         g_projects.open_after_load[0] = '\0';
         g_projects.selected = i;
-        open_project(i, "Projet cree: A pour une tache");
+        open_project(i, TR("Projet cree: A pour une tache", "Project created: A adds a task"));
         return;
       }
     }
@@ -131,7 +132,8 @@ void on_projects_loaded(const net_request_t& request, const net_reply_t& reply) 
 }
 
 void load_projects() {
-  net_request_t request = net::make(NET_LIST_PROJECTS, "Chargement des projets...", on_projects_loaded);
+  net_request_t request =
+      net::make(NET_LIST_PROJECTS, TR("Chargement des projets...", "Loading projects..."), on_projects_loaded);
   today(request.params.projects.date, sizeof(request.params.projects.date));
   net::submit(request);
 }
@@ -160,7 +162,8 @@ void on_project_tasks_loaded(const net_request_t& request, const net_reply_t& re
 
 // `status` (string literal) shows once the tasks arrived.
 void load_project_tasks(const char* status) {
-  net_request_t request = net::make(NET_LIST_TASKS, "Chargement des taches...", on_project_tasks_loaded);
+  net_request_t request =
+      net::make(NET_LIST_TASKS, TR("Chargement des taches...", "Loading tasks..."), on_project_tasks_loaded);
   request.status = status;
   strncpy(request.params.tasks.project, current_project().name, sizeof(request.params.tasks.project) - 1);
   request.params.tasks.max = MAX_PROJECT_TASKS;
@@ -183,10 +186,11 @@ void on_new_project(const char* title) {
   char name[WS_MAX_PROJECT_NAME + 1];
   workspace_utils::slugify(title, name, sizeof(name));
   if (name[0] == '\0') {
-    shell::set_status("Nom vide: rien cree");
+    shell::set_status(TR("Nom vide: rien cree", "Empty name: nothing created"));
     return;
   }
-  net_request_t request = net::make(NET_CREATE_PROJECT, "Creation du projet...", on_project_created);
+  net_request_t request =
+      net::make(NET_CREATE_PROJECT, TR("Creation du projet...", "Creating project..."), on_project_created);
   strncpy(request.params.project.title, title, sizeof(request.params.project.title) - 1);
   net::submit(request);
 }
@@ -204,15 +208,17 @@ void on_task_added(const net_request_t& request, const net_reply_t& reply) {
 }
 
 void on_new_task(const char* value) {
-  net_request_t request = net::make(NET_ADD_TASK, "Ajout de la tache...", on_task_added);
+  net_request_t request = net::make(NET_ADD_TASK, TR("Ajout de la tache...", "Adding task..."), on_task_added);
   char date[WS_DATE_LENGTH + 1];
   today(date, sizeof(date));
   if (!workspace_utils::parse_task_input(value, date, &request.params.add_task.task)) {
-    shell::set_status("Tache vide: rien ajoute");
+    shell::set_status(TR("Tache vide: rien ajoute", "Empty task: nothing added"));
     return;
   }
   strncpy(request.params.add_task.project, current_project().name, sizeof(request.params.add_task.project) - 1);
-  request.status = request.params.add_task.task.due[0] != '\0' ? "Tache ajoutee avec echeance" : "Tache ajoutee";
+  request.status = request.params.add_task.task.due[0] != '\0'
+                       ? TR("Tache ajoutee avec echeance", "Task added with a due date")
+                       : TR("Tache ajoutee", "Task added");
   net::submit(request);
 }
 
@@ -234,7 +240,7 @@ void on_task_toggled(const net_request_t& request, const net_reply_t& reply) {
     ++project.open_tasks;
   }
   workspace::request_refresh();
-  shell::set_status(done ? "Tache faite" : "Tache rouverte");
+  shell::set_status(done ? TR("Tache faite", "Task done") : TR("Tache rouverte", "Task reopened"));
 }
 
 void toggle_selected_task() {
@@ -243,7 +249,9 @@ void toggle_selected_task() {
   }
   const task_item_t& task = g_projects.tasks[g_projects.task_selected];
   const bool done = !task.done;
-  net_request_t request = net::make(NET_SET_TASK_DONE, done ? "Tache faite..." : "Tache rouverte...", on_task_toggled);
+  net_request_t request = net::make(
+      NET_SET_TASK_DONE, done ? TR("Tache faite...", "Task done...") : TR("Tache rouverte...", "Task reopened..."),
+      on_task_toggled);
   strncpy(request.params.toggle.file, task.file, sizeof(request.params.toggle.file) - 1);
   request.params.toggle.line = task.line;
   request.params.toggle.done = done;
@@ -260,10 +268,10 @@ void on_timer_stopped(bool stopped, const char* status, uint32_t minutes) {
   if (g_projects.timer_switch) {
     g_projects.timer_switch = false;
     if (!workspace::timer_start(project.name)) {
-      shell::set_status("Chrono: heure pas encore synchronisee");
+      shell::set_status(TR("Chrono: heure pas encore synchronisee", "Timer: clock not synced yet"));
       return;
     }
-    shell::set_status("Chrono lance: C pour l'arreter");
+    shell::set_status(TR("Chrono lance: C pour l'arreter", "Timer started: C to stop it"));
     return;
   }
   project.week_minutes = static_cast<uint16_t>(project.week_minutes + minutes);
@@ -274,20 +282,20 @@ void toggle_timer() {
   project_summary_t& project = current_project();
   if (workspace::timer_running() && strcmp(workspace::timer_project(), project.name) == 0) {
     g_projects.timer_switch = false;
-    workspace::timer_stop("Arret du chrono...", on_timer_stopped);
+    workspace::timer_stop(TR("Arret du chrono...", "Stopping timer..."), on_timer_stopped);
     return;
   }
   if (workspace::timer_running()) {
     // Switching project: the running timer is logged first.
     g_projects.timer_switch = true;
-    workspace::timer_stop("Arret du chrono precedent...", on_timer_stopped);
+    workspace::timer_stop(TR("Arret du chrono precedent...", "Stopping previous timer..."), on_timer_stopped);
     return;
   }
   if (!workspace::timer_start(project.name)) {
-    shell::set_status("Chrono: heure pas encore synchronisee");
+    shell::set_status(TR("Chrono: heure pas encore synchronisee", "Timer: clock not synced yet"));
     return;
   }
-  shell::set_status("Chrono lance: C pour l'arreter");
+  shell::set_status(TR("Chrono lance: C pour l'arreter", "Timer started: C to stop it"));
 }
 
 void open_project_file(const char* file_name) {
@@ -304,10 +312,11 @@ void projects_screen_open() {
 }
 
 void projects_screen_render() {
-  shell::render_frame("PROJETS", "ENVOI ouvrir N nouveau R recharger");
-  minitel_ui_write_line(3, "Taches a faire par projet (! retard)");
+  shell::render_frame(TR("PROJETS", "PROJECTS"),
+                      TR("ENVOI ouvrir N nouveau R recharger", "ENVOI open N new R reload"));
+  minitel_ui_write_line(3, TR("Taches a faire par projet (! retard)", "Tasks to do per project (! late)"));
   if (g_projects.count == 0) {
-    minitel_ui_write_line(6, "Aucun projet. N pour en creer un.");
+    minitel_ui_write_line(6, TR("Aucun projet. N pour en creer un.", "No project. N to create one."));
     shell::render_status_line();
     return;
   }
@@ -343,8 +352,8 @@ void projects_screen_handle(const input_event_t& event) {
       return;
     case INPUT_EVENT_PRINTABLE:
       if (event.ch == 'n' || event.ch == 'N') {
-        shell::request_text_input(SCREEN_PROJECTS, "Nouveau projet", "Nom du projet", "", false,
-                                  on_new_project);
+        shell::request_text_input(SCREEN_PROJECTS, TR("Nouveau projet", "New project"),
+                                  TR("Nom du projet", "Project name"), "", false, on_new_project);
       } else if (event.ch == 'r' || event.ch == 'R') {
         load_projects();
       }
@@ -356,7 +365,8 @@ void projects_screen_handle(const input_event_t& event) {
 
 void project_screen_render() {
   const project_summary_t& project = current_project();
-  shell::render_frame("PROJET", "ENVOI coche A ajout F fiche T taches");
+  shell::render_frame(TR("PROJET", "PROJECT"),
+                      TR("ENVOI coche A ajout F fiche T taches", "ENVOI tick A add F sheet T tasks"));
   char line[UI_COLS + 1];
 
   if (workspace::timer_running() && strcmp(workspace::timer_project(), project.name) == 0) {
@@ -367,19 +377,21 @@ void project_screen_render() {
     snprintf(line, sizeof(line), "%.40s", project.title);
   }
   minitel_ui_write_line(3, line);
-  snprintf(line, sizeof(line), "Statut: %.32s", project.status[0] ? project.status : "-");
+  snprintf(line, sizeof(line), TR("Statut: %.32s", "Status: %.32s"), project.status[0] ? project.status : "-");
   minitel_ui_write_line(4, line);
-  snprintf(line, sizeof(line), "Objectif: %.30s", project.goal[0] ? project.goal : "-");
+  snprintf(line, sizeof(line), TR("Objectif: %.30s", "Goal: %.34s"), project.goal[0] ? project.goal : "-");
   minitel_ui_write_line(5, line);
-  snprintf(line, sizeof(line), "Suite: %.33s", project.next[0] ? project.next : "-");
+  snprintf(line, sizeof(line), TR("Suite: %.33s", "Next: %.34s"), project.next[0] ? project.next : "-");
   minitel_ui_write_line(6, line);
   char week[12];
   format_minutes(project.week_minutes, week, sizeof(week));
-  snprintf(line, sizeof(line), "Semaine: %s  A faire: %u (%u retard)", week, project.open_tasks,
-           project.overdue_tasks);
+  snprintf(line, sizeof(line), TR("Semaine: %s  A faire: %u (%u retard)", "Week: %s  To do: %u (%u late)"), week,
+           project.open_tasks, project.overdue_tasks);
   minitel_ui_write_line(7, line);
-  minitel_ui_write_line(8, "C chrono  R recharger  RETOUR projets");
-  minitel_ui_write_line(9, g_projects.task_count > 0 ? "Taches ouvertes:" : "Aucune tache ouverte. A pour ajouter.");
+  minitel_ui_write_line(8, TR("C chrono  R recharger  RETOUR projets", "C timer  R reload  RETOUR projects"));
+  minitel_ui_write_line(9, g_projects.task_count > 0
+                               ? TR("Taches ouvertes:", "Open tasks:")
+                               : TR("Aucune tache ouverte. A pour ajouter.", "No open task. A to add one."));
 
   char date[WS_DATE_LENGTH + 1];
   today(date, sizeof(date));
@@ -417,8 +429,8 @@ void project_screen_handle(const input_event_t& event) {
       switch (event.ch) {
         case 'a':
         case 'A':
-          shell::request_text_input(SCREEN_PROJECT, "Nouvelle tache", "Texte !! @25/10 14h30", "", false,
-                                    on_new_task);
+          shell::request_text_input(SCREEN_PROJECT, TR("Nouvelle tache", "New task"),
+                                    TR("Texte !! @25/10 14h30", "Text !! @25/10 14:30"), "", false, on_new_task);
           return;
         case 'f':
         case 'F':

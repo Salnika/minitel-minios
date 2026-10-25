@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "app/app_shell.h"
+#include "app/lang.h"
 #include "services/settings_service.h"
 #include "ui/minitel_ui.h"
 
@@ -34,7 +35,7 @@ void ensure_selection_visible() {
 
 void apply_model(const char* model) {
   if (!model || model[0] == '\0') {
-    shell::set_status("Modele vide: inchange");
+    shell::set_status(TR("Modele vide: inchange", "Empty model: unchanged"));
     return;
   }
   app_settings_t& settings = shell::settings();
@@ -43,14 +44,14 @@ void apply_model(const char* model) {
   shell::settings_service().save(settings);  // the next chat request reads it
 
   char status[41];
-  snprintf(status, sizeof(status), "Modele: %.32s", settings.ai_model);
+  snprintf(status, sizeof(status), TR("Modele: %.32s", "Model: %.32s"), settings.ai_model);
   shell::set_status(status);
 }
 
 void open_manual_input() {
   shell::request_text_input(SCREEN_SETTINGS,
-                            "Modele IA",
-                            "Identifiant du modele",
+                            TR("Modele IA", "AI model"),
+                            TR("Identifiant du modele", "Model id"),
                             shell::settings().ai_model,
                             false,
                             apply_model);
@@ -62,7 +63,7 @@ void on_models_loaded(const net_request_t& request, const net_reply_t& reply) {
   if (count <= 0) {
     // Offline, missing key...: the model can still be typed by hand.
     char reason[41];
-    snprintf(reason, sizeof(reason), "%.40s", reply.ok ? "Aucun modele" : reply.error);
+    snprintf(reason, sizeof(reason), "%.40s", reply.ok ? TR("Aucun modele", "No model") : reply.error);
     open_manual_input();
     shell::set_status(reason);
     return;
@@ -85,13 +86,15 @@ void on_models_loaded(const net_request_t& request, const net_reply_t& reply) {
 }  // namespace
 
 void model_picker_open() {
-  net_request_t request = net::make(NET_LIST_MODELS, "Chargement des modeles...", on_models_loaded);
+  net_request_t request =
+      net::make(NET_LIST_MODELS, TR("Chargement des modeles...", "Loading models..."), on_models_loaded);
   net::submit(request);
 }
 
 void model_picker_render() {
-  shell::render_frame("MODELE IA", "ENVOI choisir REP/SUITE RET M saisir");
-  minitel_ui_write_line(3, "Modeles DigitalOcean (* = actuel)");
+  shell::render_frame(TR("MODELE IA", "AI MODEL"),
+                      TR("ENVOI choisir REP/SUITE RET M saisir", "ENVOI choose REP/SUITE RET M type"));
+  minitel_ui_write_line(3, TR("Modeles DigitalOcean (* = actuel)", "DigitalOcean models (* = current)"));
 
   for (uint8_t row = 0; row < VISIBLE_ROWS; ++row) {
     const uint8_t index = static_cast<uint8_t>(g_picker.scroll + row);

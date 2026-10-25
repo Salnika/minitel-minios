@@ -78,6 +78,16 @@ pio device monitor -b 115200             # add -p /dev/cu.usbserial-0001 if need
 
 The firmware uses the `min_spiffs.csv` partition table (two 1.9 MB app slots for over-the-air updates). The **first flash after this change must be over USB**: an update cannot rewrite the partition table. NVS stays at `0x9000`, so settings survive.
 
+### Language
+
+The on-screen texts are chosen at build time: French by default, English with the `_en` environments (`src/app/lang.h`). The Minitel's key names (`ENVOI`, `RETOUR`, `ANNULATION`...) stay as printed on its keyboard, and the notes keep the same layout in both languages (`projets/`, `taches.md`, `Statut:`), so both builds share one server and the same data. The assistant answers in the build's language: the Minitel sends it with each question. Tasks take `@today` and `@tomorrow` as well as `@auj` and `@demain`. This README quotes the French screens.
+
+```sh
+pio run -e esp32dev_en -t upload                          # English build over USB
+MINIOS_OTA_PASSWORD=<token> pio run -e ota_en -t upload   # English build, same Wi-Fi
+MINIOS_LANG=en MINIOS_API_URL=https://bibliotek.example.fr MINIOS_API_TOKEN=<token> scripts/publish_firmware.sh
+```
+
 ### Updates without a cable
 
 Bump `MINIOS_FIRMWARE_VERSION` in `src/app/version.h` first: the device only installs a newer version.
@@ -104,6 +114,7 @@ There is also a native unit-test environment (Unity). It covers:
 
 ```sh
 pio test -e native
+pio test -e native_en   # the same tests against the English texts
 ```
 
 ### Secrets

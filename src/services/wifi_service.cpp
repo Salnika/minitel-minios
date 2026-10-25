@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "app/lang.h"
 #include "platform/app_log.h"
 
 namespace {
@@ -59,7 +60,12 @@ bool WifiService::is_connected() const {
   return lm_wifi_is_connected();
 }
 
+// Said here rather than by lib_minitel, which only knows French.
 void WifiService::get_ssid(char* out, size_t out_size) const {
+  if (!is_connected()) {
+    safe_copy(out, out_size, TR("Non connecte", "Not connected"));
+    return;
+  }
   lm_wifi_get_ssid(out, out_size);
 }
 

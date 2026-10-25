@@ -7,8 +7,9 @@ Issues and pull requests are welcome. miniOS runs on an ESP32 wired to a Telic A
 Firmware, with [PlatformIO](https://platformio.org/):
 
 ```sh
-pio run -e esp32dev     # build
+pio run -e esp32dev     # build (pio run -e esp32dev_en for the English texts)
 pio test -e native      # Unity tests on the host, no board needed
+pio test -e native_en   # the same tests against the English texts
 ```
 
 Server, with Vite+ (`vp`), inside `server/`:
@@ -27,6 +28,7 @@ CI runs the same commands on every pull request.
 
 - Renderer changes come with a byte-level test (the `test_ui_*` cases) and Minitel link changes with a test against the fake Minitel (the `test_link_*` cases): neither can be checked without the terminal.
 - Network calls go through `net::submit()` and come back in a callback on the loop, never straight from the loop.
+- On-screen texts come in both languages: `TR("francais", "English")` from `src/app/lang.h`, with the same printf arguments, and both must fit the 40 columns and the buffer they go to.
 
 ## Pull requests
 

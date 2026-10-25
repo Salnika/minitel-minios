@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "app/app_shell.h"
+#include "app/lang.h"
 #include "app/workspace.h"
 #include "services/clock_service.h"
 #include "storage/workspace_utils.h"
@@ -55,7 +56,8 @@ void on_tasks_loaded(const net_request_t& request, const net_reply_t& reply) {
 
 // Lists every open task, or those due today or late: the screen switches once they arrived.
 void load_tasks(bool all_open) {
-  net_request_t request = net::make(NET_LIST_TASKS, "Chargement des taches...", on_tasks_loaded);
+  net_request_t request =
+      net::make(NET_LIST_TASKS, TR("Chargement des taches...", "Loading tasks..."), on_tasks_loaded);
   request.params.tasks.due_today = !all_open;
   request.params.tasks.max = MAX_TASKS;
   shell::clock_service().format_today(request.params.tasks.date, sizeof(request.params.tasks.date));
@@ -63,7 +65,7 @@ void load_tasks(bool all_open) {
     g_tasks.all_open = false;
     g_tasks.count = 0;
     g_tasks.total = 0;
-    shell::set_status("Heure non synchronisee: T pour tout");
+    shell::set_status(TR("Heure non synchronisee: T pour tout", "Clock not synced: T for all"));
     return;
   }
   net::submit(request);
@@ -80,7 +82,8 @@ void on_task_toggled(const net_request_t& request, const net_reply_t& reply) {
     g_tasks.tasks[index].done = request.params.toggle.done;
   }
   workspace::request_refresh();
-  shell::set_status(request.params.toggle.done ? "Tache faite" : "Tache rouverte");
+  shell::set_status(request.params.toggle.done ? TR("Tache faite", "Task done")
+                                               : TR("Tache rouverte", "Task reopened"));
 }
 
 void toggle_selected() {
@@ -89,7 +92,9 @@ void toggle_selected() {
   }
   const task_item_t& task = g_tasks.tasks[g_tasks.selected];
   const bool done = !task.done;
-  net_request_t request = net::make(NET_SET_TASK_DONE, done ? "Tache faite..." : "Tache rouverte...", on_task_toggled);
+  net_request_t request = net::make(
+      NET_SET_TASK_DONE, done ? TR("Tache faite...", "Task done...") : TR("Tache rouverte...", "Task reopened..."),
+      on_task_toggled);
   strncpy(request.params.toggle.file, task.file, sizeof(request.params.toggle.file) - 1);
   request.params.toggle.line = task.line;
   request.params.toggle.done = done;
@@ -117,14 +122,18 @@ void tasks_screen_open() {
 }
 
 void tasks_screen_render() {
-  shell::render_frame("TACHES", g_tasks.all_open ? "ENVOI coche O ouvrir T aujourd'hui"
-                                                 : "ENVOI coche O ouvrir T toutes");
+  shell::render_frame(TR("TACHES", "TASKS"),
+                      g_tasks.all_open ? TR("ENVOI coche O ouvrir T aujourd'hui", "ENVOI tick O open T today")
+                                       : TR("ENVOI coche O ouvrir T toutes", "ENVOI tick O open T all"));
   char line[UI_COLS + 1];
-  snprintf(line, sizeof(line), "%s (%d)", g_tasks.all_open ? "Toutes les taches ouvertes" : "Aujourd'hui et en retard",
+  snprintf(line, sizeof(line), "%s (%d)",
+           g_tasks.all_open ? TR("Toutes les taches ouvertes", "All open tasks")
+                            : TR("Aujourd'hui et en retard", "Today and late"),
            g_tasks.total);
   minitel_ui_write_line(3, line);
   if (g_tasks.count == 0) {
-    minitel_ui_write_line(6, g_tasks.all_open ? "Rien a faire." : "Rien pour aujourd'hui.");
+    minitel_ui_write_line(6, g_tasks.all_open ? TR("Rien a faire.", "Nothing to do.")
+                                              : TR("Rien pour aujourd'hui.", "Nothing for today."));
   }
 
   char today[WS_DATE_LENGTH + 1];

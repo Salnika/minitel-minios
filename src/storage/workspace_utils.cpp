@@ -6,6 +6,7 @@
 #include <string.h>
 #include <strings.h>
 
+#include "app/lang.h"
 #include "services/chat_service_utils.h"
 
 namespace workspace_utils {
@@ -120,7 +121,8 @@ bool parse_time_token(const char* token, char* out) {
   return true;
 }
 
-// Due date after "@": "auj", "demain", "2026-10-25", "25/10", "25/10/27", "25/10/2027".
+// Due date after "@": "auj" or "today", "demain" or "tomorrow", "2026-10-25", "25/10",
+// "25/10/27", "25/10/2027". Both languages are read whatever the build's language.
 bool parse_due_token(const char* spec, const char* today, char* out) {
   int today_year = 0;
   int today_month = 0;
@@ -128,14 +130,14 @@ bool parse_due_token(const char* spec, const char* today, char* out) {
   const bool has_today = parse_iso_date(today, &today_year, &today_month, &today_day);
 
   if (strcasecmp(spec, "auj") == 0 || strcasecmp(spec, "aujourdhui") == 0 ||
-      strcasecmp(spec, "aujourd'hui") == 0) {
+      strcasecmp(spec, "aujourd'hui") == 0 || strcasecmp(spec, "today") == 0) {
     if (!has_today) {
       return false;
     }
     copy_raw(out, WS_DATE_LENGTH + 1, today);
     return true;
   }
-  if (strcasecmp(spec, "demain") == 0) {
+  if (strcasecmp(spec, "demain") == 0 || strcasecmp(spec, "tomorrow") == 0) {
     return has_today && add_days(today, 1, out, WS_DATE_LENGTH + 1);
   }
 
@@ -372,11 +374,11 @@ void format_due_label(const char* due, const char* today, char* out, size_t out_
   char tomorrow[WS_DATE_LENGTH + 1] = "";
   const bool has_today = is_valid_date(today);
   if (has_today && strcmp(due, today) == 0) {
-    copy_raw(out, out_size, "auj.");
+    copy_raw(out, out_size, TR("auj.", "today"));
   } else if (has_today && add_days(today, 1, tomorrow, sizeof(tomorrow)) && strcmp(due, tomorrow) == 0) {
-    copy_raw(out, out_size, "demain");
+    copy_raw(out, out_size, TR("demain", "tmrw"));
   } else if (has_today && strcmp(due, today) < 0) {
-    copy_raw(out, out_size, "retard");
+    copy_raw(out, out_size, TR("retard", "late"));
   } else {
     snprintf(out, out_size, "%.2s/%.2s", due + 8, due + 5);
   }

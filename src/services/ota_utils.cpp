@@ -5,6 +5,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "app/lang.h"
+
 namespace ota_utils {
 namespace {
 
@@ -133,11 +135,11 @@ void up_to_date_status(const char* running, const char* server_version, char* ou
   }
   const char* version = running ? running : "";
   if (!server_version || server_version[0] == '\0') {
-    snprintf(out, out_size, "Deja a jour (%s), rien de publie", version);
+    snprintf(out, out_size, TR("Deja a jour (%s), rien de publie", "Up to date (%s), none published"), version);
   } else if (compare_versions(server_version, version) < 0) {
-    snprintf(out, out_size, "Deja a jour (%s), serveur %s", version, server_version);
+    snprintf(out, out_size, TR("Deja a jour (%s), serveur %s", "Up to date (%s), server %s"), version, server_version);
   } else {
-    snprintf(out, out_size, "Deja a jour (%s)", version);
+    snprintf(out, out_size, TR("Deja a jour (%s)", "Up to date (%s)"), version);
   }
 }
 

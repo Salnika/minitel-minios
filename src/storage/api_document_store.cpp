@@ -10,6 +10,7 @@
 #include <string.h>
 
 #include "api_document_store_utils.h"
+#include "app/lang.h"
 #include "platform/app_log.h"
 #include "services/tls_roots.h"
 
@@ -89,29 +90,29 @@ void ApiDocumentStore::set_http_error(int status_code, const char* response_body
 
   switch (status_code) {
     case 400:
-      snprintf(message, sizeof(message), "API 400 requete invalide");
+      snprintf(message, sizeof(message), TR("API 400 requete invalide", "API 400 invalid request"));
       break;
     case 401:
     case 403:
-      snprintf(message, sizeof(message), "API %d token invalide", status_code);
+      snprintf(message, sizeof(message), TR("API %d token invalide", "API %d invalid token"), status_code);
       break;
     case 404:
-      snprintf(message, sizeof(message), "API 404 ressource absente");
+      snprintf(message, sizeof(message), TR("API 404 ressource absente", "API 404 not found"));
       break;
     case 409:
       // A task line moved: the file changed since the list was loaded.
-      snprintf(message, sizeof(message), "Fichier modifie: recharge");
+      snprintf(message, sizeof(message), TR("Fichier modifie: recharge", "File changed: reload"));
       break;
     case 301:
     case 302:
     case 307:
     case 308:
       // Coolify/Traefik redirect http to https: the URL must be configured as https.
-      snprintf(message, sizeof(message), "API redirigee: utilise https://");
+      snprintf(message, sizeof(message), TR("API redirigee: utilise https://", "API redirected: use https://"));
       break;
     default:
       if (status_code >= 500) {
-        snprintf(message, sizeof(message), "API %d erreur serveur", status_code);
+        snprintf(message, sizeof(message), TR("API %d erreur serveur", "API %d server error"), status_code);
       } else if (status_code > 0) {
         snprintf(message, sizeof(message), "API HTTP %d", status_code);
       } else {
@@ -119,7 +120,7 @@ void ApiDocumentStore::set_http_error(int status_code, const char* response_body
         snprintf(message,
                  sizeof(message),
                  "API %s",
-                 error.length() > 0 ? error.c_str() : "injoignable");
+                 error.length() > 0 ? error.c_str() : TR("injoignable", "unreachable"));
       }
       break;
   }
@@ -137,15 +138,15 @@ bool ApiDocumentStore::perform_request(const char* method,
                                        bool authorize,
                                        DynamicJsonDocument* response) {
   if (base_url_[0] == '\0') {
-    set_error("API URL vide");
+    set_error(TR("API URL vide", "Empty API URL"));
     return false;
   }
   if (authorize && api_token_[0] == '\0') {
-    set_error("API token vide");
+    set_error(TR("API token vide", "Empty API token"));
     return false;
   }
   if (WiFi.status() != WL_CONNECTED) {
-    set_error("WiFi hors ligne");
+    set_error(TR("WiFi hors ligne", "WiFi offline"));
     return false;
   }
 
@@ -170,7 +171,7 @@ bool ApiDocumentStore::perform_request(const char* method,
 
   HTTPClient http;
   if (!http.begin(client, url)) {
-    set_error("API inaccessible");
+    set_error(TR("API inaccessible", "API unreachable"));
     return false;
   }
 
@@ -192,7 +193,7 @@ bool ApiDocumentStore::perform_request(const char* method,
     status_code = http.PUT(json_body ? json_body : "");
   } else {
     http.end();
-    set_error("Methode HTTP invalide");
+    set_error(TR("Methode HTTP invalide", "Invalid HTTP method"));
     return false;
   }
 
@@ -212,7 +213,7 @@ bool ApiDocumentStore::perform_request(const char* method,
                                                 : deserializeJson(*response, "null");
     if (json_error) {
       app_log_warn("store", "json error=%s body=%s", json_error.c_str(), raw_response.c_str());
-      set_error("JSON invalide");
+      set_error(TR("JSON invalide", "Invalid JSON"));
       return false;
     }
   }
@@ -223,11 +224,11 @@ bool ApiDocumentStore::perform_request(const char* method,
 
 void ApiDocumentStore::begin() {
   if (base_url_[0] == '\0') {
-    set_error("API URL vide");
+    set_error(TR("API URL vide", "Empty API URL"));
     return;
   }
   if (api_token_[0] == '\0') {
-    set_error("API token vide");
+    set_error(TR("API token vide", "Empty API token"));
     return;
   }
 
@@ -244,7 +245,7 @@ void ApiDocumentStore::begin() {
     return;
   }
 
-  set_error("API health invalide");
+  set_error(TR("API health invalide", "Invalid API health"));
 }
 
 int ApiDocumentStore::list_folders(const char* parent_path, folder_info_t* out, int max_items) {
@@ -319,7 +320,7 @@ bool ApiDocumentStore::get_document(const char* id, document_record_t* out) {
   char folder_path[STORE_MAX_FOLDER_PATH + 1];
   char file_name[STORE_MAX_FILE_NAME_LENGTH + 1];
   if (!api_document_store_utils::parse_document_id(id, folder_path, sizeof(folder_path), file_name, sizeof(file_name))) {
-    set_error("ID document invalide");
+    set_error(TR("ID document invalide", "Invalid document id"));
     return false;
   }
 
@@ -333,7 +334,7 @@ bool ApiDocumentStore::get_document(const char* id, document_record_t* out) {
   }
 
   if (!api_document_store_utils::parse_document_record(response.as<JsonVariantConst>(), out, true)) {
-    set_error("JSON document invalide");
+    set_error(TR("JSON document invalide", "Invalid document JSON"));
     return false;
   }
   // The request already names the file: keep that identity so a later save writes back to
@@ -354,7 +355,8 @@ bool ApiDocumentStore::save_document(const document_record_t& document) {
   if (document.truncated) {
     // Only part of the server copy fits in RAM: writing it back would cut the document.
     // Report it without flagging the API as unavailable.
-    api_document_store_utils::safe_copy(last_error_, sizeof(last_error_), "Doc trop long: lecture seule");
+    api_document_store_utils::safe_copy(last_error_, sizeof(last_error_),
+                                        TR("Doc trop long: lecture seule", "Document too long: read-only"));
     return false;
   }
 
@@ -365,7 +367,7 @@ bool ApiDocumentStore::save_document(const document_record_t& document) {
                                                    sizeof(folder_path),
                                                    file_name,
                                                    sizeof(file_name))) {
-    set_error("ID document invalide");
+    set_error(TR("ID document invalide", "Invalid document id"));
     return false;
   }
 
@@ -406,7 +408,7 @@ bool ApiDocumentStore::create_document(const char* folder_path,
   api_document_store_utils::normalize_local_folder_path(folder_path, local_folder, sizeof(local_folder));
   api_document_store_utils::local_folder_to_remote(local_folder, remote_folder, sizeof(remote_folder));
   if (remote_folder[0] == '\0') {
-    set_error("Racine virtuelle: cree un dossier");
+    set_error(TR("Racine virtuelle: cree un dossier", "Virtual root: create a folder"));
     return false;
   }
   api_document_store_utils::split_name_or_filename(
@@ -431,7 +433,7 @@ bool ApiDocumentStore::create_document(const char* folder_path,
   char payload[API_CREATE_DOCUMENT_PAYLOAD_SIZE];
   const size_t payload_size = serializeJson(request, payload, sizeof(payload));
   if (payload_size == 0 || payload_size >= sizeof(payload)) {
-    set_error("Payload creation trop grand");
+    set_error(TR("Payload creation trop grand", "Create payload too large"));
     return false;
   }
 
@@ -467,7 +469,7 @@ bool ApiDocumentStore::create_folder(const char* parent_path, const char* name) 
   api_document_store_utils::join_local_path(parent_path, name, local_path, sizeof(local_path));
   api_document_store_utils::local_folder_to_remote(local_path, remote_path, sizeof(remote_path));
   if (remote_path[0] == '\0') {
-    set_error("Nom dossier invalide");
+    set_error(TR("Nom dossier invalide", "Invalid folder name"));
     return false;
   }
 

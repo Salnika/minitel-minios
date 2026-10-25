@@ -7,6 +7,7 @@
 #include <atomic>
 
 #include "app_shell.h"
+#include "lang.h"
 #include "platform/app_log.h"
 #include "services/chat_service.h"
 #include "services/net_worker.h"
@@ -19,7 +20,7 @@
 
 namespace {
 
-constexpr const char* CANCEL_HINT = " ANN annule";
+constexpr const char* CANCEL_HINT = TR(" ANN annule", " ANN cancels");
 // Progress stage of NET_WIFI_CONNECT once it goes back to the saved network.
 constexpr uint32_t WIFI_STAGE_BACK_TO_SAVED = 1;
 
@@ -247,13 +248,15 @@ void run_store_request(const net_request_t& request, net_reply_t& reply) {
   reply.store_available = g_net_store.is_available();
   if (!reply.ok) {
     safe_copy(reply.error, sizeof(reply.error),
-              g_net_store.last_error()[0] != '\0' ? g_net_store.last_error() : "API indisponible");
+              g_net_store.last_error()[0] != '\0' ? g_net_store.last_error()
+                                                  : TR("API indisponible", "API unavailable"));
   }
 }
 
 void run_wifi_request(const net_request_t& request, net_reply_t& reply) {
   if (should_stop()) {
-    safe_copy(reply.error, sizeof(reply.error), "Requete annulee");  // the radio stays as it is
+    // The radio stays as it is.
+    safe_copy(reply.error, sizeof(reply.error), TR("Requete annulee", "Request cancelled"));
     return;
   }
   if (request.kind == NET_WIFI_SCAN) {
@@ -272,7 +275,7 @@ void run_wifi_request(const net_request_t& request, net_reply_t& reply) {
   if (reply.ok) {
     return;
   }
-  safe_copy(reply.error, sizeof(reply.error), "Connexion WiFi KO");
+  safe_copy(reply.error, sizeof(reply.error), TR("Connexion WiFi KO", "WiFi connection failed"));
   switch (wifi_utils::after_failed_connect(wifi.ssid, wifi.saved_ssid, should_stop())) {
     case wifi_utils::AFTER_CONNECT_BACK_TO_SAVED:
       // Once cancelled, this only starts the connection: the radio completes it alone.
@@ -451,7 +454,8 @@ bool submit(net_request_t& request) {
       request.kind, request.background ? net_queue::PRIORITY_BACKGROUND : net_queue::PRIORITY_FOREGROUND);
   if (slot == net_queue::NET_QUEUE_NONE) {
     if (!request.background) {
-      shell::set_status(net_worker::started() ? "Requete en cours: ANN annule" : "Reseau indisponible");
+      shell::set_status(net_worker::started() ? TR("Requete en cours: ANN annule", "Request running: ANN cancels")
+                                              : TR("Reseau indisponible", "Network unavailable"));
     }
     app_log_warn("net", "%s refused", kind_label(request.kind));
     return false;
@@ -524,21 +528,21 @@ void busy_text(char* out, size_t out_size) {
     progress = net_worker::progress();
   }
 
-  const char* label = request.label ? request.label : "Requete...";
+  const char* label = request.label ? request.label : TR("Requete...", "Request...");
   bool show_seconds = true;
   if (is_chat_stream(request.kind) && running) {
     if (progress.stage == CHAT_STAGE_THINKING) {
-      label = "L'IA reflechit...";
+      label = TR("L'IA reflechit...", "The AI is thinking...");
     } else if (progress.stage == CHAT_STAGE_ACTING) {
-      label = "L'IA travaille...";
+      label = TR("L'IA travaille...", "The AI is working...");
     } else if (progress.stage == CHAT_STAGE_WRITING) {
-      label = "Reponse en cours...";
+      label = TR("Reponse en cours...", "Writing the reply...");
       show_seconds = false;  // the text itself shows progress
     }
   } else if (request.kind == NET_WIFI_CONNECT && running && progress.stage == WIFI_STAGE_BACK_TO_SAVED) {
-    label = "Retour au reseau enregistre...";
+    label = TR("Retour au reseau enregistre...", "Back to the saved network...");
   } else if (!running && wifi_connect_in_flight()) {
-    label = "Attente du WiFi...";
+    label = TR("Attente du WiFi...", "Waiting for WiFi...");
   }
 
   char head[UI_COLS + 1];

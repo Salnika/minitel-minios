@@ -61,13 +61,14 @@ int parse_tasks(const JsonVariantConst& root, task_item_t* out, int max_items, i
 int parse_search_hits(const JsonVariantConst& root, search_hit_t* out, int max_items);
 
 // Reads "!".."!!!" priorities and a due date: "@25/10" (next occurrence), "@25/10/2027",
-// "@2026-10-25", "@auj" or "@demain", optionally followed by a time "14:30" / "14h30" /
-// "14h". `today` is YYYY-MM-DD. Fails when no text is left.
+// "@2026-10-25", "@auj"/"@today" or "@demain"/"@tomorrow", optionally followed by a time
+// "14:30" / "14h30" / "14h". `today` is YYYY-MM-DD. Fails when no text is left.
 bool parse_task_input(const char* input, const char* today, task_input_t* out);
 
 bool is_valid_date(const char* date);
 bool add_days(const char* date, int days, char* out, size_t out_size);
-// "auj.", "demain", "retard" or "25/10" for a task list column.
+// "auj.", "demain", "retard" ("today", "tmrw", "late" in English) or "25/10" for a task list
+// column.
 void format_due_label(const char* due, const char* today, char* out, size_t out_size);
 // "Robot Minitel ete" -> "robot-minitel-ete", the server's folder rule.
 void slugify(const char* input, char* out, size_t out_size);

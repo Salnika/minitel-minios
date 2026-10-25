@@ -4,6 +4,7 @@
 
 #include "app/editor_layout.h"
 #include "app/input.h"
+#include "app/lang.h"
 #include "app/text_wrap.h"
 #include "services/chat_service_utils.h"
 #include "services/net_queue.h"
@@ -629,11 +630,11 @@ void test_ota_parses_manifest(void) {
 void test_ota_says_when_the_device_is_already_up_to_date(void) {
   char status[41];
   ota_utils::up_to_date_status("1.2.1", "1.2.1", status, sizeof(status));
-  TEST_ASSERT_EQUAL_STRING("Deja a jour (1.2.1)", status);
+  TEST_ASSERT_EQUAL_STRING(TR("Deja a jour (1.2.1)", "Up to date (1.2.1)"), status);
   ota_utils::up_to_date_status("1.2.1", "1.2.0", status, sizeof(status));
-  TEST_ASSERT_EQUAL_STRING("Deja a jour (1.2.1), serveur 1.2.0", status);
+  TEST_ASSERT_EQUAL_STRING(TR("Deja a jour (1.2.1), serveur 1.2.0", "Up to date (1.2.1), server 1.2.0"), status);
   ota_utils::up_to_date_status("1.2.1", "", status, sizeof(status));
-  TEST_ASSERT_EQUAL_STRING("Deja a jour (1.2.1), rien de publie", status);
+  TEST_ASSERT_EQUAL_STRING(TR("Deja a jour (1.2.1), rien de publie", "Up to date (1.2.1), none published"), status);
 
   // A 404 is "nothing published" only when Bibliotek says so.
   TEST_ASSERT_TRUE(ota_utils::nothing_published("{\"error\":\"No firmware published\"}"));
@@ -680,6 +681,14 @@ void test_workspace_parses_typed_tasks(void) {
   TEST_ASSERT_TRUE(workspace_utils::parse_task_input("Voir @25/10", "", &task));
   TEST_ASSERT_EQUAL_STRING("Voir @25/10", task.text);
   TEST_ASSERT_FALSE(workspace_utils::parse_task_input("!! @auj", "2026-10-20", &task));
+
+  // The English words work in both languages.
+  TEST_ASSERT_TRUE(workspace_utils::parse_task_input("Call Paul @tomorrow 9h", "2026-12-31", &task));
+  TEST_ASSERT_EQUAL_STRING("Call Paul", task.text);
+  TEST_ASSERT_EQUAL_STRING("2027-01-01", task.due);
+  TEST_ASSERT_EQUAL_STRING("09:00", task.time);
+  TEST_ASSERT_TRUE(workspace_utils::parse_task_input("Glue @Today", "2026-10-20", &task));
+  TEST_ASSERT_EQUAL_STRING("2026-10-20", task.due);
 }
 
 void test_workspace_dates_and_labels(void) {
@@ -692,11 +701,11 @@ void test_workspace_dates_and_labels(void) {
 
   char label[8];
   workspace_utils::format_due_label("2026-10-20", "2026-10-20", label, sizeof(label));
-  TEST_ASSERT_EQUAL_STRING("auj.", label);
+  TEST_ASSERT_EQUAL_STRING(TR("auj.", "today"), label);
   workspace_utils::format_due_label("2026-10-21", "2026-10-20", label, sizeof(label));
-  TEST_ASSERT_EQUAL_STRING("demain", label);
+  TEST_ASSERT_EQUAL_STRING(TR("demain", "tmrw"), label);
   workspace_utils::format_due_label("2026-10-02", "2026-10-20", label, sizeof(label));
-  TEST_ASSERT_EQUAL_STRING("retard", label);
+  TEST_ASSERT_EQUAL_STRING(TR("retard", "late"), label);
   workspace_utils::format_due_label("2026-11-03", "2026-10-20", label, sizeof(label));
   TEST_ASSERT_EQUAL_STRING("03/11", label);
 
@@ -1343,7 +1352,7 @@ void test_chat_agent_request_sends_settings_history_and_question(void) {
   serializeJson(doc, json, sizeof(json));
   TEST_ASSERT_EQUAL_STRING(
       "{\"ai\":{\"baseUrl\":\"https://inference.do-ai.run/v1\",\"apiKey\":\"sk-1\","
-      "\"model\":\"deepseek-v4.1-flash\"},\"now\":\"2026-10-20 14:32\","
+      "\"model\":\"deepseek-v4.1-flash\"},\"now\":\"2026-10-20 14:32\",\"lang\":\"" MINIOS_LANG "\","
       "\"history\":[{\"user\":\"Range\",\"assistant\":\"C'est fait.\",\"actions\":\"lit a.md\\ncree b.md\"},"
       "{\"user\":\"Merci\",\"assistant\":\"De rien.\"}],\"prompt\":\"Et maintenant ?\"}",
       json);

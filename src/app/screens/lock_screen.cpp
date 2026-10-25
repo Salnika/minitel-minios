@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "app/app_shell.h"
+#include "app/lang.h"
 #include "services/settings_service.h"
 #include "ui/minitel_ui.h"
 
@@ -55,9 +56,9 @@ void check_entered_pin() {
   if (g_lock.failures >= ATTEMPTS_BEFORE_DELAY) {
     g_lock.failures = 0;
     g_lock.locked_until_ms = millis() + LOCKOUT_MS;
-    shell::set_status("Code incorrect: attendre 30 s");
+    shell::set_status(TR("Code incorrect: attendre 30 s", "Wrong code: wait 30 s"));
   } else {
-    shell::set_status("Code incorrect");
+    shell::set_status(TR("Code incorrect", "Wrong code"));
   }
 }
 
@@ -75,8 +76,9 @@ void lock_screen_open() {
 }
 
 void lock_screen_render() {
-  shell::render_frame("VERROU", "Chiffres puis ENVOI  CORRECTION efface");
-  minitel_ui_write_line(8, "      Minitel verrouille");
+  shell::render_frame(TR("VERROU", "LOCK"),
+                      TR("Chiffres puis ENVOI  CORRECTION efface", "Digits then ENVOI  CORRECTION erases"));
+  minitel_ui_write_line(8, TR("      Minitel verrouille", "      Minitel locked"));
   char stars[PIN_MAX_LENGTH * 2 + 1];
   size_t length = 0;
   for (size_t i = 0; g_lock.entered[i] != '\0'; ++i) {
@@ -85,7 +87,7 @@ void lock_screen_render() {
   }
   stars[length] = '\0';
   char line[UI_COLS + 1];
-  snprintf(line, sizeof(line), "      Code PIN: %s", stars);
+  snprintf(line, sizeof(line), TR("      Code PIN: %s", "      PIN code: %s"), stars);
   minitel_ui_write_line(11, line);
   shell::render_status_line();
 }
@@ -114,13 +116,13 @@ void lock_screen_handle(const input_event_t& event) {
 void lock_screen_change_pin(const char* pin) {
   if (!pin || pin[0] == '\0') {
     shell::settings_service().store_secret_value(KEY_PIN, "");
-    shell::set_status("Code PIN retire");
+    shell::set_status(TR("Code PIN retire", "PIN code removed"));
     return;
   }
   if (!is_valid_pin(pin)) {
-    shell::set_status("PIN: 4 a 8 chiffres");
+    shell::set_status(TR("PIN: 4 a 8 chiffres", "PIN: 4 to 8 digits"));
     return;
   }
   shell::settings_service().store_secret_value(KEY_PIN, pin);
-  shell::set_status("Code PIN active au demarrage");
+  shell::set_status(TR("Code PIN active au demarrage", "PIN code asked at boot"));
 }

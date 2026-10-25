@@ -7,6 +7,7 @@
 #include <time.h>
 
 #include "app/app_shell.h"
+#include "app/lang.h"
 #include "platform/app_log.h"
 #include "services/clock_service.h"
 #include "services/settings_service.h"
@@ -143,7 +144,7 @@ void check_reminders() {
       g_today.reminded[g_today.reminded_count++] = hash;
     }
     char status[UI_COLS + 1];
-    snprintf(status, sizeof(status), "Rappel %s: %.27s", task.time, task.text);
+    snprintf(status, sizeof(status), TR("Rappel %s: %.27s", "Reminder %s: %.25s"), task.time, task.text);
     shell::set_status(status);
     minitel_ui_beep(3, 200);
     return;  // one reminder at a time, the next check rings the following one
@@ -168,13 +169,15 @@ void on_timer_logged(const net_request_t& request, const net_reply_t& reply) {
   g_timer.stop_done = nullptr;
   if (!reply.ok) {
     if (done) {
-      done(false, reply.error[0] ? reply.error : "Chrono non note", 0);  // the timer keeps running
+      // The timer keeps running.
+      done(false, reply.error[0] ? reply.error : TR("Chrono non note", "Timer not logged"), 0);
     }
     return;
   }
   clear_timer();
   char status[UI_COLS + 1];
-  snprintf(status, sizeof(status), "Chrono: %lu min notees", static_cast<unsigned long>(request.context));
+  snprintf(status, sizeof(status), TR("Chrono: %lu min notees", "Timer: %lu min logged"),
+           static_cast<unsigned long>(request.context));
   if (done) {
     done(true, status, request.context);
   }
@@ -293,7 +296,7 @@ bool timer_start(const char* project) {
 bool timer_stop(const char* label, timer_stopped_t done) {
   if (!timer_running()) {
     if (done) {
-      done(false, "Aucun chrono en cours", 0);
+      done(false, TR("Aucun chrono en cours", "No timer running"), 0);
     }
     return true;
   }
@@ -302,7 +305,7 @@ bool timer_stop(const char* label, timer_stopped_t done) {
   if (minutes < 1) {
     clear_timer();
     if (done) {
-      done(true, "Chrono arrete (moins d'1 min)", 0);
+      done(true, TR("Chrono arrete (moins d'1 min)", "Timer stopped (under 1 min)"), 0);
     }
     return true;
   }

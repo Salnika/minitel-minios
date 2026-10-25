@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "app/lang.h"
 #include "platform/app_log.h"
 #include "tls_roots.h"
 
@@ -29,11 +30,15 @@ constexpr size_t CHAT_AGENT_DOC_SIZE = 1024;
 constexpr const char* ASSISTANT_PATH = "/assistant";
 constexpr const char* ASSISTANT_CONFIRM_PATH = "/assistant/confirm";
 constexpr const char* CHAT_SYSTEM_PROMPT =
-    "Tu reponds en francais, de facon concise, claire et lisible sur un Minitel 40 colonnes. "
-    "Evite le markdown complexe, les longues listes et les phrases inutiles.";
+    TR("Tu reponds en francais, de facon concise, claire et lisible sur un Minitel 40 colonnes. "
+       "Evite le markdown complexe, les longues listes et les phrases inutiles.",
+       "You answer in English, concisely, clearly and readably on a 40-column Minitel. "
+       "Avoid complex markdown, long lists and needless sentences.");
 constexpr const char* CHAT_RETRY_SYSTEM_PROMPT =
-    "Donne maintenant uniquement la reponse finale, sans developper ton raisonnement. "
-    "La reponse doit etre breve et directe.";
+    TR("Donne maintenant uniquement la reponse finale, sans developper ton raisonnement. "
+       "La reponse doit etre breve et directe.",
+       "Now give only the final answer, without spelling out your reasoning. "
+       "The answer must be short and direct.");
 
 #ifndef CHAT_SERVICE_ALLOW_INSECURE_TLS
 #define CHAT_SERVICE_ALLOW_INSECURE_TLS 0
@@ -303,32 +308,32 @@ void ChatService::set_http_error(int status_code, const char* response_body) {
 
   switch (status_code) {
     case 400:
-      snprintf(message, sizeof(message), "IA 400 requete invalide");
+      snprintf(message, sizeof(message), TR("IA 400 requete invalide", "AI 400 invalid request"));
       break;
     case 401:
     case 403:
-      snprintf(message, sizeof(message), "IA %d cle invalide", status_code);
+      snprintf(message, sizeof(message), TR("IA %d cle invalide", "AI %d invalid key"), status_code);
       break;
     case 404:
-      snprintf(message, sizeof(message), "IA 404 endpoint absent");
+      snprintf(message, sizeof(message), TR("IA 404 endpoint absent", "AI 404 no such endpoint"));
       break;
     case 408:
-      snprintf(message, sizeof(message), "IA timeout");
+      snprintf(message, sizeof(message), TR("IA timeout", "AI timeout"));
       break;
     case 429:
-      snprintf(message, sizeof(message), "IA quota atteint");
+      snprintf(message, sizeof(message), TR("IA quota atteint", "AI quota reached"));
       break;
     default:
       if (status_code >= 500) {
-        snprintf(message, sizeof(message), "IA %d erreur serveur", status_code);
+        snprintf(message, sizeof(message), TR("IA %d erreur serveur", "AI %d server error"), status_code);
       } else if (status_code > 0) {
-        snprintf(message, sizeof(message), "IA HTTP %d", status_code);
+        snprintf(message, sizeof(message), TR("IA HTTP %d", "AI HTTP %d"), status_code);
       } else {
         String error = HTTPClient::errorToString(status_code);
         snprintf(message,
                  sizeof(message),
-                 "IA %s",
-                 error.length() > 0 ? error.c_str() : "injoignable");
+                 TR("IA %s", "AI %s"),
+                 error.length() > 0 ? error.c_str() : TR("injoignable", "unreachable"));
       }
       break;
   }
@@ -344,26 +349,27 @@ void ChatService::set_assistant_http_error(bool confirmation, int status_code, c
   char message[sizeof(last_error_)];
   switch (status_code) {
     case 400:
-      snprintf(message, sizeof(message), "Assistant: requete invalide");
+      snprintf(message, sizeof(message), TR("Assistant: requete invalide", "Assistant: invalid request"));
       break;
     case 401:
     case 403:
-      snprintf(message, sizeof(message), "Docs token invalide");
+      snprintf(message, sizeof(message), TR("Docs token invalide", "Invalid Docs token"));
       break;
     case 404:
       // A confirmation answered too late, or a Bibliotek older than the assistant.
       snprintf(message, sizeof(message),
-               confirmation ? "Confirmation expiree" : "Serveur sans assistant: a mettre a jour");
+               confirmation ? TR("Confirmation expiree", "Confirmation expired")
+                            : TR("Serveur sans assistant: a mettre a jour", "Server has no assistant: update it"));
       break;
     case 301:
     case 302:
     case 307:
     case 308:
-      snprintf(message, sizeof(message), "API redirigee: utilise https://");
+      snprintf(message, sizeof(message), TR("API redirigee: utilise https://", "API redirected: use https://"));
       break;
     default:
       if (status_code >= 500) {
-        snprintf(message, sizeof(message), "Bibliotek %d erreur serveur", status_code);
+        snprintf(message, sizeof(message), TR("Bibliotek %d erreur serveur", "Bibliotek %d server error"), status_code);
       } else if (status_code > 0) {
         snprintf(message, sizeof(message), "Bibliotek HTTP %d", status_code);
       } else {
@@ -371,7 +377,7 @@ void ChatService::set_assistant_http_error(bool confirmation, int status_code, c
         snprintf(message,
                  sizeof(message),
                  "Bibliotek %s",
-                 error.length() > 0 ? error.c_str() : "injoignable");
+                 error.length() > 0 ? error.c_str() : TR("injoignable", "unreachable"));
       }
       break;
   }
@@ -384,19 +390,19 @@ void ChatService::set_assistant_http_error(bool confirmation, int status_code, c
 
 bool ChatService::check_ai_settings() {
   if (base_url_[0] == '\0') {
-    set_error("IA URL vide");
+    set_error(TR("IA URL vide", "Empty AI URL"));
     return false;
   }
   if (!url_uses_tls(base_url_)) {
-    set_error("IA URL https requise");
+    set_error(TR("IA URL https requise", "AI URL must be https"));
     return false;
   }
   if (api_key_[0] == '\0') {
-    set_error("IA cle vide");
+    set_error(TR("IA cle vide", "Empty AI key"));
     return false;
   }
   if (model_[0] == '\0') {
-    set_error("IA modele vide");
+    set_error(TR("IA modele vide", "Empty AI model"));
     return false;
   }
   return true;
@@ -405,15 +411,15 @@ bool ChatService::check_ai_settings() {
 // The AI key goes to Bibliotek with the question: never in clear.
 bool ChatService::check_assistant_settings() {
   if (api_url_[0] == '\0' || api_token_[0] == '\0') {
-    set_error("Assistant: Docs URL/token vides");
+    set_error(TR("Assistant: Docs URL/token vides", "Assistant: empty Docs URL/token"));
     return false;
   }
   if (!url_uses_tls(api_url_)) {
-    set_error("Assistant: Docs URL https requise");
+    set_error(TR("Assistant: Docs URL https requise", "Assistant: Docs URL must be https"));
     return false;
   }
   if (WiFi.status() != WL_CONNECTED) {
-    set_error("WiFi hors ligne");
+    set_error(TR("WiFi hors ligne", "WiFi offline"));
     return false;
   }
   return true;
@@ -444,7 +450,7 @@ bool ChatService::stream_attempt(const chat_history_t& history,
   configure_tls_client(&client);
   HTTPClient http;
   if (!http.begin(client, url)) {
-    set_error("IA inaccessible");
+    set_error(TR("IA inaccessible", "AI unreachable"));
     return false;
   }
   http.setReuse(false);  // the reply may be left unread: never keep the connection
@@ -468,7 +474,7 @@ bool ChatService::stream_attempt(const chat_history_t& history,
     const String body = http.getString();
     http.end();
     if (!read_whole_reply(body, out_reply, out_reply_size)) {
-      set_error("JSON invalide");
+      set_error(TR("JSON invalide", "Invalid JSON"));
       return false;
     }
     report_progress(hooks);
@@ -479,7 +485,7 @@ bool ChatService::stream_attempt(const chat_history_t& history,
       &g_stream, out_reply, out_reply_size, http.header("Transfer-Encoding").equalsIgnoreCase("chunked"));
   const bool timed_out = !read_event_stream(&http, hooks);
   if (timed_out && g_stream.text.length == 0) {
-    set_error("IA timeout");
+    set_error(TR("IA timeout", "AI timeout"));
     return false;
   }
   return true;
@@ -509,7 +515,7 @@ bool ChatService::agent_attempt(bool confirmation,
   configure_tls_client(&client);
   HTTPClient http;
   if (!http.begin(client, url)) {
-    set_error("Bibliotek inaccessible");
+    set_error(TR("Bibliotek inaccessible", "Bibliotek unreachable"));
     return false;
   }
   http.setReuse(false);  // the reply may be left unread: never keep the connection
@@ -530,7 +536,7 @@ bool ChatService::agent_attempt(bool confirmation,
   }
   if (!http.header("Content-Type").startsWith("text/event-stream")) {
     http.end();
-    set_error("Reponse assistant invalide");
+    set_error(TR("Reponse assistant invalide", "Invalid assistant reply"));
     return false;
   }
 
@@ -545,12 +551,12 @@ bool ChatService::agent_attempt(bool confirmation,
     *reply.confirm = g_stream.confirm;
   }
   if (is_cancelled(hooks)) {
-    set_error("Requete IA annulee");
+    set_error(TR("Requete IA annulee", "AI request cancelled"));
     return false;
   }
   if (g_stream.failed) {
     // The assistant's own message (model errors), else a cut stream.
-    set_error(g_stream.error[0] != '\0' ? g_stream.error : "Reponse IA interrompue");
+    set_error(g_stream.error[0] != '\0' ? g_stream.error : TR("Reponse IA interrompue", "AI reply interrupted"));
     return false;
   }
   if (g_stream.confirm.id[0] != '\0') {
@@ -559,11 +565,11 @@ bool ChatService::agent_attempt(bool confirmation,
     return true;
   }
   if (timed_out && g_stream.text.length == g_stream.text_start) {
-    set_error("IA timeout");
+    set_error(TR("IA timeout", "AI timeout"));
     return false;
   }
   if (g_stream.text.length == 0 && g_stream.actions.length == 0) {
-    set_error("Reponse vide");
+    set_error(TR("Reponse vide", "Empty reply"));
     return false;
   }
   if (out_truncated) {
@@ -596,7 +602,7 @@ bool ChatService::stream_agent(const chat_history_t& history,
 
   char normalized_prompt[CHAT_MAX_PROMPT_LENGTH + 1];
   if (!chat_service_utils::normalize_text(prompt, normalized_prompt, sizeof(normalized_prompt), nullptr)) {
-    set_error("Prompt vide");
+    set_error(TR("Prompt vide", "Empty prompt"));
     return false;
   }
 
@@ -610,7 +616,7 @@ bool ChatService::stream_agent(const chat_history_t& history,
     settings.now = now ? now : "";
     chat_service_utils::build_agent_request(request, history, normalized_prompt, settings);
     if (request.overflowed()) {
-      set_error("Requete assistant trop grande");
+      set_error(TR("Requete assistant trop grande", "Assistant request too large"));
       return false;
     }
     serializeJson(request, payload);
@@ -659,7 +665,7 @@ bool ChatService::stream_message(const chat_history_t& history,
     return false;
   }
   if (WiFi.status() != WL_CONNECTED) {
-    set_error("WiFi hors ligne");
+    set_error(TR("WiFi hors ligne", "WiFi offline"));
     return false;
   }
 
@@ -667,7 +673,7 @@ bool ChatService::stream_message(const chat_history_t& history,
   bool prompt_truncated = false;
   if (!chat_service_utils::normalize_text(
           prompt, normalized_prompt, sizeof(normalized_prompt), &prompt_truncated)) {
-    set_error("Prompt vide");
+    set_error(TR("Prompt vide", "Empty prompt"));
     return false;
   }
   (void)prompt_truncated;
@@ -682,16 +688,17 @@ bool ChatService::stream_message(const chat_history_t& history,
       return false;
     }
     if (g_stream.text.length == 0 && !is_cancelled(hooks)) {
-      set_error("Reponse incomplete");
+      set_error(TR("Reponse incomplete", "Incomplete reply"));
       return false;
     }
   }
   if (is_cancelled(hooks)) {
-    set_error("Requete IA annulee");
+    set_error(TR("Requete IA annulee", "AI request cancelled"));
     return false;
   }
   if (g_stream.text.length == 0) {
-    set_error(g_stream.failed ? "IA erreur pendant la reponse" : "Reponse vide");
+    set_error(g_stream.failed ? TR("IA erreur pendant la reponse", "AI error during the reply")
+                              : TR("Reponse vide", "Empty reply"));
     return false;
   }
 
@@ -700,7 +707,7 @@ bool ChatService::stream_message(const chat_history_t& history,
     *out_truncated = g_stream.text.truncated || g_stream.length_limited || !g_stream.finished;
   }
   if (g_stream.failed) {
-    set_error("Reponse IA interrompue");  // what arrived stays in out_reply
+    set_error(TR("Reponse IA interrompue", "AI reply interrupted"));  // what arrived stays in out_reply
     return false;
   }
   clear_error();
@@ -716,15 +723,15 @@ int ChatService::list_models(char out[][CHAT_MAX_MODEL_ID_LENGTH + 1], int max_i
     return 0;
   }
   if (!url_uses_tls(base_url_)) {
-    set_error("IA URL https requise");
+    set_error(TR("IA URL https requise", "AI URL must be https"));
     return -1;
   }
   if (api_key_[0] == '\0') {
-    set_error("IA cle vide");
+    set_error(TR("IA cle vide", "Empty AI key"));
     return -1;
   }
   if (WiFi.status() != WL_CONNECTED) {
-    set_error("WiFi hors ligne");
+    set_error(TR("WiFi hors ligne", "WiFi offline"));
     return -1;
   }
 
@@ -735,7 +742,7 @@ int ChatService::list_models(char out[][CHAT_MAX_MODEL_ID_LENGTH + 1], int max_i
   configure_tls_client(&client);
   HTTPClient http;
   if (!http.begin(client, url)) {
-    set_error("IA inaccessible");
+    set_error(TR("IA inaccessible", "AI unreachable"));
     return -1;
   }
   http.setTimeout(CHAT_HTTP_TIMEOUT_MS);
@@ -761,7 +768,7 @@ int ChatService::list_models(char out[][CHAT_MAX_MODEL_ID_LENGTH + 1], int max_i
       deserializeJson(response, raw_response, DeserializationOption::Filter(filter));
   if (json_error) {
     app_log_warn("chat", "models json error=%s", json_error.c_str());
-    set_error("JSON modeles invalide");
+    set_error(TR("JSON modeles invalide", "Invalid models JSON"));
     return -1;
   }
 

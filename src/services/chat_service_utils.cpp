@@ -4,6 +4,8 @@
 #include <string.h>
 #include <strings.h>
 
+#include "app/lang.h"
+
 namespace chat_service_utils {
 namespace {
 
@@ -708,6 +710,7 @@ void build_agent_request(JsonDocument& doc,
   if (settings.now && settings.now[0] != '\0') {
     doc["now"] = settings.now;
   }
+  doc["lang"] = MINIOS_LANG;  // the assistant answers and labels its actions in this language
 
   JsonArray turns = doc.createNestedArray("history");
   for (uint8_t i = 0; i < history.count; ++i) {

@@ -13,7 +13,17 @@ Le firmware est organisé en couches :
   - `app_shell.h` : l'API que les écrans modulaires utilisent (statut, navigation, saisie avec rappel, ouverture de document, services) ;
   - `net_requests.*` : toutes les requêtes réseau (paramètres, code exécuté sur la tâche réseau, rappel sur la boucle) ;
   - `screens/` : un fichier par écran (projets, tâches, recherche, système, modèle IA, verrou) ;
-  - `workspace.*` : tâches du jour, rappels, chrono, documents récents.
+  - `workspace.*` : tâches du jour, rappels, chrono, documents récents ;
+  - `lang.h` : la langue des textes, choisie à la compilation.
+
+## Langue
+
+Les textes affichés sont écrits `TR("francais", "English")` là où ils servent (`src/app/lang.h`) : le français par défaut, l'anglais avec `-DMINIOS_LANG_EN` (environnements `esp32dev_en`, `ota_en` et `native_en`). Seul le texte de la langue choisie est compilé ; les deux prennent les mêmes arguments `printf` et tiennent dans les mêmes 40 colonnes.
+
+- Ne changent pas avec la langue : les noms des touches du Minitel (`ENVOI`, `RETOUR`...), les fichiers et dossiers des notes (`projets/`, `taches.md`, `temps.md`, `inbox/inbox.md`, `journal/`), les champs de `projet.md`, la syntaxe des tâches, les champs JSON, les clés NVS et les logs série.
+- La saisie d'une tâche lit `@auj`/`@today` et `@demain`/`@tomorrow` dans les deux langues.
+- Le chat direct a un prompt système par langue ; l'assistant reçoit `lang` (`fr` ou `en`) avec chaque question et répond, nomme ses actions et pose ses questions dans cette langue.
+- Une mise à jour par le serveur installe la langue de la version publiée (`MINIOS_LANG=en scripts/publish_firmware.sh`).
 
 ## Boot
 

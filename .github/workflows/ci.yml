@@ -23,7 +23,9 @@ jobs:
           key: platformio-${{ runner.os }}-${{ hashFiles('platformio.ini') }}
       - run: pip install platformio
       - run: pio run -e esp32dev
+      - run: pio run -e esp32dev_en
       - run: pio test -e native
+      - run: pio test -e native_en
 
   server:
     name: Server

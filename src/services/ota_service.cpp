@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "app/lang.h"
 #include "app/version.h"
 #include "ota_utils.h"
 #include "platform/app_log.h"
@@ -95,17 +96,20 @@ void OtaService::begin_lan(const char* hostname, const char* password, progress_
   ArduinoOTA.setPassword(password);
   ArduinoOTA.onStart([]() {
     g_lan_reported_percent = -1;
-    report(g_lan_progress, &g_lan_reported_percent, "Mise a jour reseau", 0);
+    report(g_lan_progress, &g_lan_reported_percent, TR("Mise a jour reseau", "Network update"), 0);
   });
   ArduinoOTA.onProgress([](unsigned int done, unsigned int total) {
-    report_step(g_lan_progress, &g_lan_reported_percent, "Mise a jour reseau",
+    report_step(g_lan_progress, &g_lan_reported_percent, TR("Mise a jour reseau", "Network update"),
                 total > 0 ? static_cast<int>(done * 100ULL / total) : 0);
   });
-  ArduinoOTA.onEnd([]() { report(g_lan_progress, &g_lan_reported_percent, "Mise a jour OK, redemarrage", 100); });
+  ArduinoOTA.onEnd([]() {
+    report(g_lan_progress, &g_lan_reported_percent, TR("Mise a jour OK, redemarrage", "Update OK, restarting"), 100);
+  });
   ArduinoOTA.onError([](ota_error_t error) {
     report(g_lan_progress,
            &g_lan_reported_percent,
-           error == OTA_AUTH_ERROR ? "Mise a jour refusee: mot de passe" : "Mise a jour echouee",
+           error == OTA_AUTH_ERROR ? TR("Mise a jour refusee: mot de passe", "Update refused: password")
+                                   : TR("Mise a jour echouee", "Update failed"),
            -1);
   });
   ArduinoOTA.begin();
@@ -136,11 +140,11 @@ bool OtaService::check_server(const char* base_url,
     *out_newer = false;
   }
   if (!base_url || base_url[0] == '\0') {
-    set_error("API URL vide");
+    set_error(TR("API URL vide", "Empty API URL"));
     return false;
   }
   if (WiFi.status() != WL_CONNECTED) {
-    set_error("WiFi hors ligne");
+    set_error(TR("WiFi hors ligne", "WiFi offline"));
     return false;
   }
 
@@ -148,7 +152,7 @@ bool OtaService::check_server(const char* base_url,
   WiFiClientSecure secure_client;
   HTTPClient http;
   if (!begin_server_request(http, plain_client, secure_client, base_url, "/firmware/manifest", token)) {
-    set_error("Serveur inaccessible");
+    set_error(TR("Serveur inaccessible", "Server unreachable"));
     return false;
   }
   http.addHeader("Accept", "application/json");
@@ -164,15 +168,15 @@ bool OtaService::check_server(const char* base_url,
       app_log_info("ota", "server has no firmware, running=%s", MINIOS_FIRMWARE_VERSION);
       return true;
     }
-    set_error("Pas de /firmware: serveur a redeployer");
+    set_error(TR("Pas de /firmware: serveur a redeployer", "No /firmware: redeploy the server"));
     return false;
   }
   if (status_code != 200) {
     char message[sizeof(last_error_)];
     if (status_code > 0) {
-      snprintf(message, sizeof(message), "Serveur HTTP %d", status_code);
+      snprintf(message, sizeof(message), TR("Serveur HTTP %d", "Server HTTP %d"), status_code);
     } else {
-      snprintf(message, sizeof(message), "Serveur injoignable");
+      snprintf(message, sizeof(message), TR("Serveur injoignable", "Server unreachable"));
     }
     set_error(message);
     return false;
@@ -180,7 +184,7 @@ bool OtaService::check_server(const char* base_url,
 
   ota_utils::ota_manifest_t manifest;
   if (!ota_utils::parse_manifest(body.c_str(), &manifest)) {
-    set_error("Manifeste invalide");
+    set_error(TR("Manifeste invalide", "Invalid manifest"));
     return false;
   }
   safe_copy(out_version, out_version_size, manifest.version);
@@ -197,11 +201,11 @@ bool OtaService::install_from_server(const char* base_url,
                                      progress_fn on_progress,
                                      bool (*should_stop)()) {
   if (!base_url || base_url[0] == '\0') {
-    set_error("API URL vide");
+    set_error(TR("API URL vide", "Empty API URL"));
     return false;
   }
   if (WiFi.status() != WL_CONNECTED) {
-    set_error("WiFi hors ligne");
+    set_error(TR("WiFi hors ligne", "WiFi offline"));
     return false;
   }
 
@@ -212,14 +216,14 @@ bool OtaService::install_from_server(const char* base_url,
     WiFiClientSecure secure_client;
     HTTPClient http;
     if (!begin_server_request(http, plain_client, secure_client, base_url, "/firmware/manifest", token)) {
-      set_error("Serveur inaccessible");
+      set_error(TR("Serveur inaccessible", "Server unreachable"));
       return false;
     }
     const int status_code = http.GET();
     const String body = status_code == 200 ? http.getString() : String();
     http.end();
     if (status_code != 200 || !ota_utils::parse_manifest(body.c_str(), &manifest)) {
-      set_error("Manifeste illisible");
+      set_error(TR("Manifeste illisible", "Unreadable manifest"));
       return false;
     }
   }
@@ -228,24 +232,25 @@ bool OtaService::install_from_server(const char* base_url,
   WiFiClientSecure secure_client;
   HTTPClient http;
   if (!begin_server_request(http, plain_client, secure_client, base_url, "/firmware/download", token)) {
-    set_error("Serveur inaccessible");
+    set_error(TR("Serveur inaccessible", "Server unreachable"));
     return false;
   }
   const int status_code = http.GET();
   if (status_code != 200) {
     http.end();
-    set_error(status_code == 404 ? "Firmware absent du serveur" : "Telechargement refuse");
+    set_error(status_code == 404 ? TR("Firmware absent du serveur", "No firmware on the server")
+                                 : TR("Telechargement refuse", "Download refused"));
     return false;
   }
   const int length = http.getSize();
   if (length <= 0) {
     http.end();
-    set_error("Taille du firmware inconnue");
+    set_error(TR("Taille du firmware inconnue", "Unknown firmware size"));
     return false;
   }
   if (!Update.begin(static_cast<size_t>(length))) {
     http.end();
-    set_error("Place insuffisante en flash");
+    set_error(TR("Place insuffisante en flash", "Not enough flash space"));
     return false;
   }
   if (manifest.md5[0] != '\0') {
@@ -257,12 +262,12 @@ bool OtaService::install_from_server(const char* base_url,
   size_t written = 0;
   uint32_t last_data_ms = millis();
   int last_percent = -1;
-  report(on_progress, &last_percent, "Telechargement", 0);
+  report(on_progress, &last_percent, TR("Telechargement", "Downloading"), 0);
   while (written < static_cast<size_t>(length)) {
     if (should_stop && should_stop()) {
       Update.abort();
       http.end();
-      set_error("Mise a jour annulee");
+      set_error(TR("Mise a jour annulee", "Update cancelled"));
       return false;
     }
     const size_t available = stream->available();
@@ -281,28 +286,29 @@ bool OtaService::install_from_server(const char* base_url,
     if (Update.write(buffer, static_cast<size_t>(read)) != static_cast<size_t>(read)) {
       Update.abort();
       http.end();
-      set_error("Ecriture flash echouee");
+      set_error(TR("Ecriture flash echouee", "Flash write failed"));
       return false;
     }
     written += static_cast<size_t>(read);
     last_data_ms = millis();
-    report_step(on_progress, &last_percent, "Telechargement",
+    report_step(on_progress, &last_percent, TR("Telechargement", "Downloading"),
                 static_cast<int>(written * 100ULL / static_cast<size_t>(length)));
   }
   http.end();
 
   if (written != static_cast<size_t>(length)) {
     Update.abort();
-    set_error("Telechargement interrompu");
+    set_error(TR("Telechargement interrompu", "Download interrupted"));
     return false;
   }
   if (!Update.end(true)) {
-    set_error(Update.getError() == UPDATE_ERROR_MD5 ? "Firmware corrompu (MD5)" : "Installation echouee");
+    set_error(Update.getError() == UPDATE_ERROR_MD5 ? TR("Firmware corrompu (MD5)", "Corrupted firmware (MD5)")
+                                                    : TR("Installation echouee", "Install failed"));
     return false;
   }
 
   app_log_info("ota", "server update installed version=%s", manifest.version);
-  report(on_progress, &last_percent, "Installe, redemarrage", 100);
+  report(on_progress, &last_percent, TR("Installe, redemarrage", "Installed, restarting"), 100);
   delay(500);
   ESP.restart();
   return true;

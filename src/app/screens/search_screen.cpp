@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "app/app_shell.h"
+#include "app/lang.h"
 #include "storage/workspace_utils.h"
 #include "ui/minitel_ui.h"
 
@@ -43,11 +44,11 @@ void on_search_done(const net_request_t& request, const net_reply_t& reply) {
   g_search.count = static_cast<uint8_t>(count);
   shell::request_redraw();
   if (count == 0) {
-    shell::set_status("Aucun resultat");
+    shell::set_status(TR("Aucun resultat", "No result"));
     return;
   }
   char status[UI_COLS + 1];
-  snprintf(status, sizeof(status), "%d resultat(s)", count);
+  snprintf(status, sizeof(status), TR("%d resultat(s)", "%d result(s)"), count);
   shell::set_status(status);
 }
 
@@ -55,7 +56,7 @@ void on_query(const char* query) {
   strncpy(g_search.query, query ? query : "", sizeof(g_search.query) - 1);
   g_search.query[sizeof(g_search.query) - 1] = '\0';
   if (g_search.query[0] == '\0') {
-    shell::set_status("Recherche vide");
+    shell::set_status(TR("Recherche vide", "Empty search"));
     return;
   }
 
@@ -63,13 +64,14 @@ void on_query(const char* query) {
   g_search.selected = 0;
   g_search.scroll = 0;
   shell::switch_screen(SCREEN_SEARCH);
-  net_request_t request = net::make(NET_SEARCH, "Recherche...", on_search_done);
+  net_request_t request = net::make(NET_SEARCH, TR("Recherche...", "Searching..."), on_search_done);
   strncpy(request.params.search.query, g_search.query, sizeof(request.params.search.query) - 1);
   net::submit(request);
 }
 
 void ask_query() {
-  shell::request_text_input(SCREEN_HOME, "Recherche", "Dans les notes et les projets", g_search.query, false,
+  shell::request_text_input(SCREEN_HOME, TR("Recherche", "Search"),
+                            TR("Dans les notes et les projets", "In notes and projects"), g_search.query, false,
                             on_query);
 }
 
@@ -80,7 +82,7 @@ void search_screen_start() {
 }
 
 void search_screen_render() {
-  shell::render_frame("RECHERCHE", "ENVOI ouvrir N nouvelle RETOUR");
+  shell::render_frame(TR("RECHERCHE", "SEARCH"), TR("ENVOI ouvrir N nouvelle RETOUR", "ENVOI open N new RETOUR"));
   char line[UI_COLS + 1];
   snprintf(line, sizeof(line), "\"%.36s\"", g_search.query);
   minitel_ui_write_line(3, line);

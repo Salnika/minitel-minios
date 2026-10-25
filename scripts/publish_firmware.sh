@@ -6,7 +6,8 @@
 #
 # MINIOS_API_URL must be the Docs URL set on the Minitel (Reglages): updates are looked for
 # there. Bump MINIOS_FIRMWARE_VERSION in src/app/version.h first: the device only installs a
-# newer version.
+# newer version. MINIOS_LANG=en publishes the English build (esp32dev_en) instead of the French
+# one: the Minitel switches language with the update.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -14,13 +15,22 @@ cd "$(dirname "$0")/.."
 : "${MINIOS_API_TOKEN:?set MINIOS_API_TOKEN to its API_TOKEN}"
 api_url="${MINIOS_API_URL%/}"
 
+case "${MINIOS_LANG:-fr}" in
+  fr) env_name=esp32dev ;;
+  en) env_name=esp32dev_en ;;
+  *)
+    echo "MINIOS_LANG must be fr or en" >&2
+    exit 1
+    ;;
+esac
+
 version=$(sed -n 's/^#define MINIOS_FIRMWARE_VERSION "\(.*\)"$/\1/p' src/app/version.h)
 if [ -z "$version" ]; then
   echo "MINIOS_FIRMWARE_VERSION not found in src/app/version.h" >&2
   exit 1
 fi
 
-pio run -e esp32dev
+pio run -e "$env_name"
 
 response=$(mktemp)
 trap 'rm -f "$response"' EXIT
@@ -28,7 +38,7 @@ trap 'rm -f "$response"' EXIT
 status=$(curl -sS -o "$response" -w '%{http_code}' -X PUT "${api_url}/firmware?version=${version}" \
   -H "Authorization: Bearer ${MINIOS_API_TOKEN}" \
   -H "Content-Type: application/octet-stream" \
-  --data-binary @.pio/build/esp32dev/firmware.bin)
+  --data-binary @".pio/build/${env_name}/firmware.bin")
 if [ "$status" != "201" ]; then
   echo "Publication refusee (HTTP ${status}) : $(cat "$response")" >&2
   case "$status" in

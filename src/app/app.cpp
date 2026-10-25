@@ -9,6 +9,7 @@
 #include "app_shell.h"
 #include "editor_layout.h"
 #include "input.h"
+#include "lang.h"
 #include "net_requests.h"
 #include "version.h"
 #include "workspace.h"
@@ -50,11 +51,24 @@ constexpr uint8_t HOME_MENU_COUNT = 9;
 constexpr uint8_t HOME_MENU_START_ROW = 7;
 constexpr uint8_t HOME_RECENTS_ROW = 17;
 constexpr const char* HOME_MENU_LABELS[HOME_MENU_COUNT] = {
-    "Projets", "Taches du jour", "Notes", "Capture rapide", "Journal du jour",
-    "Recherche", "Assistant IA", "Reglages", "Systeme"};
-constexpr const char* DAY_NAMES[] = {"Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"};
-constexpr const char* MONTH_NAMES[] = {"janvier", "fevrier", "mars", "avril", "mai", "juin",
-                                       "juillet", "aout", "septembre", "octobre", "novembre", "decembre"};
+    TR("Projets", "Projects"),
+    TR("Taches du jour", "Today's tasks"),
+    TR("Notes", "Notes"),
+    TR("Capture rapide", "Quick capture"),
+    TR("Journal du jour", "Today's journal"),
+    TR("Recherche", "Search"),
+    TR("Assistant IA", "AI assistant"),
+    TR("Reglages", "Settings"),
+    TR("Systeme", "System")};
+constexpr const char* DAY_NAMES[] = {
+    TR("Dimanche", "Sunday"), TR("Lundi", "Monday"), TR("Mardi", "Tuesday"),
+    TR("Mercredi", "Wednesday"), TR("Jeudi", "Thursday"), TR("Vendredi", "Friday"),
+    TR("Samedi", "Saturday")};
+constexpr const char* MONTH_NAMES[] = {
+    TR("janvier", "January"), TR("fevrier", "February"), TR("mars", "March"),
+    TR("avril", "April"), TR("mai", "May"), TR("juin", "June"),
+    TR("juillet", "July"), TR("aout", "August"), TR("septembre", "September"),
+    TR("octobre", "October"), TR("novembre", "November"), TR("decembre", "December")};
 constexpr const char* INBOX_FILE = "inbox/inbox.md";
 constexpr const char* OTA_HOSTNAME = "minitel-minios";
 constexpr uint8_t SETTINGS_ITEM_COUNT = 10;
@@ -79,7 +93,7 @@ constexpr const char* CHAT_ACTION_PREFIX = " * ";
 constexpr const char* CHAT_CONFIRM_PREFIX = " ? ";
 constexpr const char* CHAT_CONTINUATION_PREFIX = "   ";
 // Kept when the assistant acted but wrote nothing (it failed, or was stopped).
-constexpr const char* CHAT_NO_REPLY = "(pas de reponse)";
+constexpr const char* CHAT_NO_REPLY = TR("(pas de reponse)", "(no reply)");
 constexpr uint8_t CHAT_VISIBLE_ROWS = UI_CONTENT_END_ROW - CHAT_TRANSCRIPT_START_ROW + 1;
 constexpr uint8_t CHAT_MAX_RENDER_LINES = 96;
 // A streamed reply that reaches the bottom row jumps a page, keeping this many lines above
@@ -479,7 +493,7 @@ bool chat_configured() {
 void on_store_checked(const net_request_t& request, const net_reply_t& reply) {
   if (!request.background) {
     if (!reply.ok) {
-      set_status_from_reply_or(reply, "API indisponible");
+      set_status_from_reply_or(reply, TR("API indisponible", "API unavailable"));
     } else if (request.status) {
       set_status(request.status);
     }
@@ -487,7 +501,7 @@ void on_store_checked(const net_request_t& request, const net_reply_t& reply) {
   }
   // Silent check (boot, Wi-Fi link change): only the screens showing the server state change.
   if (!reply.ok && (g_app.screen == SCREEN_SETTINGS || g_app.screen == SCREEN_EDITOR)) {
-    set_status_from_reply_or(reply, "API indisponible");
+    set_status_from_reply_or(reply, TR("API indisponible", "API unavailable"));
   } else if (g_app.screen == SCREEN_SETTINGS || g_app.screen == SCREEN_SYSTEM || g_app.screen == SCREEN_FILES) {
     g_app.full_redraw_needed = true;
   }
@@ -496,7 +510,7 @@ void on_store_checked(const net_request_t& request, const net_reply_t& reply) {
 // Asks Bibliotek for /health. With a `status` (string literal) the user waits for the
 // answer, which then shows; without, it is checked in the background.
 void check_store(const char* status) {
-  net_request_t request = net::make(NET_HEALTH, "Test du serveur...", on_store_checked);
+  net_request_t request = net::make(NET_HEALTH, TR("Test du serveur...", "Checking server..."), on_store_checked);
   request.status = status;
   request.background = status == nullptr;
   net::submit(request);
@@ -660,7 +674,7 @@ void chat_clear_session(bool show_status) {
   g_app.chat.newest_turn_line = 0;
   g_app.chat.follow = true;
   if (show_status) {
-    set_status("Session chat vide");
+    set_status(TR("Session chat vide", "Chat session cleared"));
   }
 }
 
@@ -711,7 +725,7 @@ const char* chat_pending_reply() {
 }
 
 const char* chat_confirm_text() {
-  return g_app.chat.confirm.text[0] != '\0' ? g_app.chat.confirm.text : "Action a confirmer";
+  return g_app.chat.confirm.text[0] != '\0' ? g_app.chat.confirm.text : TR("Action a confirmer", "Action to confirm");
 }
 
 // The question waiting for its reply: the actions so far, what arrived of the reply, and the
@@ -752,12 +766,14 @@ void chat_rebuild_render_lines() {
 
   uint16_t line_count = 0;
   if (g_app.chat.history.count == 0 && !g_app.chat.pending) {
-    chat_append_wrapped_message("", "", "Session vide. ENVOI pour poser une question.", &line_count);
+    chat_append_wrapped_message(
+        "", "", TR("Session vide. ENVOI pour poser une question.", "Empty session. ENVOI to ask a question."),
+        &line_count);
   }
 
   const uint8_t first_turn = chat_first_rendered_turn();
   if (first_turn > 0) {
-    chat_store_render_line(&line_count, "[echanges precedents masques]");
+    chat_store_render_line(&line_count, TR("[echanges precedents masques]", "[earlier exchanges hidden]"));
   }
 
   g_app.chat.newest_turn_line = line_count;
@@ -768,7 +784,7 @@ void chat_rebuild_render_lines() {
     chat_append_actions(turn.actions, &line_count);
     chat_append_wrapped_message("R> ", "   ", turn.assistant, &line_count);
     if (turn.assistant_truncated) {
-      chat_store_render_line(&line_count, "   [reponse tronquee]");
+      chat_store_render_line(&line_count, TR("   [reponse tronquee]", "   [reply truncated]"));
     }
     if ((i + 1 < g_app.chat.history.count || g_app.chat.pending) &&
         line_count < CHAT_MAX_RENDER_LINES) {
@@ -839,8 +855,9 @@ bool chat_agent_mode() {
 void chat_request_prompt_input() {
   request_text_input(TEXT_INPUT_CHAT_PROMPT,
                      SCREEN_CHAT,
-                     "Chat IA",
-                     chat_agent_mode() ? "Question (l'IA voit tes notes)" : "Question pour Gradient",
+                     TR("Chat IA", "AI chat"),
+                     chat_agent_mode() ? TR("Question (l'IA voit tes notes)", "Question (the AI sees your notes)")
+                                       : TR("Question pour Gradient", "Question for Gradient"),
                      "",
                      false);
 }
@@ -904,16 +921,17 @@ void on_chat_reply(const net_request_t& request, const net_reply_t& reply) {
     g_app.chat.confirm = chat.confirm;
     g_app.chat.awaiting = true;
     g_app.chat.follow = true;
-    set_status("L'IA attend ton accord");
+    set_status(TR("L'IA attend ton accord", "The AI awaits your OK"));
     return;
   }
   if (reply.ok) {
     chat_finish_exchange(chat.text, reply.truncated);
-    set_status(reply.truncated ? "Reponse recue (tronquee)" : "Reponse recue");
+    set_status(reply.truncated ? TR("Reponse recue (tronquee)", "Reply received (truncated)")
+                               : TR("Reponse recue", "Reply received"));
     return;
   }
   chat_finish_exchange(chat.text, true);  // cut midway: keep what arrived
-  set_status_from_reply_or(reply, "Requete IA KO");
+  set_status_from_reply_or(reply, TR("Requete IA KO", "AI request failed"));
 }
 
 // What arrived stays: chat_poll_reply() copied it on this loop iteration.
@@ -924,7 +942,8 @@ void on_chat_cancelled(const net_request_t& request) {
   }
   const bool kept = g_app.chat.partial[0] != '\0' || g_app.chat.actions[0] != '\0';
   chat_finish_exchange(g_app.chat.partial, true);
-  set_status(kept ? "Reponse interrompue" : "Requete IA annulee");
+  set_status(kept ? TR("Reponse interrompue", "Reply interrupted")
+                  : TR("Requete IA annulee", "AI request cancelled"));
 }
 
 void format_local_now(char* out, size_t out_size) {
@@ -943,11 +962,11 @@ void chat_submit_prompt(const char* prompt) {
   char normalized[CHAT_MAX_PROMPT_LENGTH + 1];
   bool truncated = false;
   if (!chat_service_utils::normalize_text(prompt, normalized, sizeof(normalized), &truncated)) {
-    set_status("Prompt vide");
+    set_status(TR("Prompt vide", "Empty prompt"));
     return;
   }
 
-  net_request_t request = net::make(NET_CHAT, "Requete IA...", on_chat_reply);
+  net_request_t request = net::make(NET_CHAT, TR("Requete IA...", "AI request..."), on_chat_reply);
   request.on_cancelled = on_chat_cancelled;
   request.prepare = prepare_chat;
   safe_copy(request.params.chat.prompt, sizeof(request.params.chat.prompt), normalized);
@@ -976,7 +995,9 @@ void chat_submit_prompt(const char* prompt) {
 // action, or hears the refusal.
 void chat_answer_confirmation(bool accept) {
   net_request_t request =
-      net::make(NET_CHAT_CONFIRM, accept ? "Action acceptee..." : "Action refusee...", on_chat_reply);
+      net::make(NET_CHAT_CONFIRM,
+                accept ? TR("Action acceptee...", "Action accepted...") : TR("Action refusee...", "Action refused..."),
+                on_chat_reply);
   request.on_cancelled = on_chat_cancelled;
   request.prepare = prepare_chat;
   safe_copy(request.params.confirm.id, sizeof(request.params.confirm.id), g_app.chat.confirm.id);
@@ -995,8 +1016,8 @@ void chat_answer_confirmation(bool accept) {
 // ANNULATION while the assistant waits: the exchange ends there, without the action.
 void chat_abandon_confirmation() {
   const bool wrote = g_app.chat.partial[0] != '\0';
-  chat_finish_exchange(wrote ? g_app.chat.partial : "(action abandonnee)", wrote);
-  set_status("Action abandonnee");
+  chat_finish_exchange(wrote ? g_app.chat.partial : TR("(action abandonnee)", "(action dropped)"), wrote);
+  set_status(TR("Action abandonnee", "Action dropped"));
 }
 
 // The reply or the actions grew: redraw the chat with them.
@@ -1041,7 +1062,7 @@ void explorer_select_folder(const char* path) {
 // Shows the listing of `request`'s folder: the explorer only moves once it arrived.
 void on_explorer_listed(const net_request_t& request, const net_reply_t& reply) {
   if (!reply.ok) {
-    set_status_from_reply_or(reply, "API indisponible");
+    set_status_from_reply_or(reply, TR("API indisponible", "API unavailable"));
     return;
   }
 
@@ -1105,7 +1126,8 @@ void on_explorer_listed(const net_request_t& request, const net_reply_t& reply) 
 // Lists `folder` with `tag` (folders, then the documents carrying the tag). `select` names a
 // folder to select once listed; `status` (string literal) shows when it arrived.
 void request_explorer_listing(const char* folder, const char* tag, const char* select, const char* status) {
-  net_request_t request = net::make(NET_LIST_FOLDER, "Chargement du dossier...", on_explorer_listed);
+  net_request_t request =
+      net::make(NET_LIST_FOLDER, TR("Chargement du dossier...", "Loading folder..."), on_explorer_listed);
   safe_copy(request.params.listing.folder, sizeof(request.params.listing.folder), folder);
   safe_copy(request.params.listing.tag, sizeof(request.params.listing.tag), tag);
   safe_copy(request.params.listing.select, sizeof(request.params.listing.select), select);
@@ -1138,7 +1160,7 @@ void show_document(const document_record_t& record, uint16_t line, screen_id_t r
   g_app.full_redraw_needed = true;
   clear_status();
   if (record.truncated) {
-    set_status("Lecture seule: doc trop long");
+    set_status(TR("Lecture seule: doc trop long", "Read-only: document too long"));
   }
   char recent_title[sizeof(workspace::recent_document_t::title)];
   snprintf(recent_title, sizeof(recent_title), "%s.%s", record.title, record.extension);
@@ -1153,7 +1175,7 @@ void show_document(const document_record_t& record, uint16_t line, screen_id_t r
 
 void on_document_loaded(const net_request_t& request, const net_reply_t& reply) {
   if (!reply.ok) {
-    set_status_from_reply_or(reply, "Document introuvable");
+    set_status_from_reply_or(reply, TR("Document introuvable", "Document not found"));
     return;
   }
   show_document(reply.data.document, request.params.open.line, static_cast<screen_id_t>(request.params.open.return_screen));
@@ -1161,7 +1183,7 @@ void on_document_loaded(const net_request_t& request, const net_reply_t& reply) 
 
 // Loads `id` and opens it in the editor (see shell::open_document_from).
 void request_document(const char* id, uint16_t line, screen_id_t return_screen) {
-  net_request_t request = net::make(NET_GET_DOCUMENT, "Ouverture...", on_document_loaded);
+  net_request_t request = net::make(NET_GET_DOCUMENT, TR("Ouverture...", "Opening..."), on_document_loaded);
   safe_copy(request.params.open.id, sizeof(request.params.open.id), id);
   request.params.open.line = line;
   request.params.open.return_screen = static_cast<uint8_t>(return_screen);
@@ -1191,7 +1213,8 @@ void render_boot_screen(const char* line1, const char* line2) {
 }
 
 void render_home_screen() {
-  render_frame_with_current_topbar("ACCUEIL", "ENVOI ouvrir  1-9 acces direct");
+  render_frame_with_current_topbar(TR("ACCUEIL", "HOME"),
+                                   TR("ENVOI ouvrir  1-9 acces direct", "ENVOI open  1-9 direct access"));
   char line[41];
 
   struct tm now;
@@ -1199,21 +1222,22 @@ void render_home_screen() {
     snprintf(line, sizeof(line), "%s %d %s %d", DAY_NAMES[now.tm_wday], now.tm_mday, MONTH_NAMES[now.tm_mon],
              now.tm_year + 1900);
   } else {
-    snprintf(line, sizeof(line), "Heure pas encore synchronisee");
+    snprintf(line, sizeof(line), TR("Heure pas encore synchronisee", "Clock not synced yet"));
   }
   minitel_ui_write_line(3, line);
 
   if (workspace::today_known()) {
     const uint16_t open = workspace::today_open_count();
-    snprintf(line, sizeof(line), "Aujourd'hui: %u tache%s, %u en retard", open, open > 1 ? "s" : "",
-             workspace::today_overdue_count());
+    const bool plural = TR(open > 1, open != 1);  // French counts 0 as singular, English as plural
+    snprintf(line, sizeof(line), TR("Aujourd'hui: %u tache%s, %u en retard", "Today: %u task%s, %u late"), open,
+             plural ? "s" : "", workspace::today_overdue_count());
   } else {
-    snprintf(line, sizeof(line), "Aujourd'hui: taches pas encore lues");
+    snprintf(line, sizeof(line), TR("Aujourd'hui: taches pas encore lues", "Today: tasks not loaded yet"));
   }
   minitel_ui_write_line(4, line);
   if (workspace::timer_running()) {
     const uint32_t minutes = workspace::timer_elapsed_minutes();
-    snprintf(line, sizeof(line), "Chrono: %.24s %luh%02lu", workspace::timer_project(),
+    snprintf(line, sizeof(line), TR("Chrono: %.24s %luh%02lu", "Timer: %.24s %luh%02lu"), workspace::timer_project(),
              static_cast<unsigned long>(minutes / 60), static_cast<unsigned long>(minutes % 60));
     minitel_ui_write_line(5, line);
   }
@@ -1225,7 +1249,7 @@ void render_home_screen() {
   }
   const uint8_t recents = workspace::recent_count();
   if (recents > 0) {
-    minitel_ui_write_line(HOME_RECENTS_ROW, "Recents:");
+    minitel_ui_write_line(HOME_RECENTS_ROW, TR("Recents:", "Recent:"));
     for (uint8_t i = 0; i < recents; ++i) {
       snprintf(line, sizeof(line), "%c    %.34s", HOME_MENU_COUNT + i == g_app.home_selected_index ? '>' : ' ',
                workspace::recent_at(i).title);
@@ -1241,14 +1265,14 @@ void render_files_screen() {
   render_frame_with_current_topbar("FILES", footer);
 
   char folder_line[41];
-  snprintf(folder_line, sizeof(folder_line), "Dossier: %s", g_app.explorer.current_folder);
+  snprintf(folder_line, sizeof(folder_line), TR("Dossier: %s", "Folder: %s"), g_app.explorer.current_folder);
   minitel_ui_write_line(3, folder_line);
 
   char filter_line[41];
   snprintf(filter_line,
            sizeof(filter_line),
-           "Filtre tag: %s",
-           g_app.explorer.tag_filter[0] ? g_app.explorer.tag_filter : "aucun");
+           TR("Filtre tag: %s", "Tag filter: %s"),
+           g_app.explorer.tag_filter[0] ? g_app.explorer.tag_filter : TR("aucun", "none"));
   minitel_ui_write_line(4, filter_line);
 
   for (uint8_t row = 0; row < FILES_VISIBLE_ROWS; ++row) {
@@ -1269,9 +1293,10 @@ void render_files_screen() {
 
   if (g_app.explorer.item_count == 0) {
     if (net::store_available()) {
-      minitel_ui_write_line(8, at_root ? "Aucun dossier. D pour creer." : "Aucun element. N ou D.");
+      minitel_ui_write_line(8, at_root ? TR("Aucun dossier. D pour creer.", "No folder. D to create one.")
+                                       : TR("Aucun element. N ou D.", "Nothing here. N or D."));
     } else {
-      minitel_ui_write_line(8, "API indisponible.");
+      minitel_ui_write_line(8, TR("API indisponible.", "API unavailable."));
     }
     minitel_ui_write_line(FILES_META_ROW, net::store_available() ? "" : net::store_error());
   } else {
@@ -1292,14 +1317,15 @@ void render_wifi_screen() {
   g_wifi_service.get_ip(ip, sizeof(ip));
 
   char line1[41];
-  snprintf(line1, sizeof(line1), "Actuel: %s", ssid);
+  snprintf(line1, sizeof(line1), TR("Actuel: %s", "Current: %s"), ssid);
   minitel_ui_write_line(3, line1);
   char line2[41];
   snprintf(line2, sizeof(line2), "IP: %s", ip);
   minitel_ui_write_line(4, line2);
 
   char line3[41];
-  snprintf(line3, sizeof(line3), "Defaut: %s", g_settings.wifi_ssid[0] ? g_settings.wifi_ssid : "aucun");
+  snprintf(line3, sizeof(line3), TR("Defaut: %s", "Saved: %s"),
+           g_settings.wifi_ssid[0] ? g_settings.wifi_ssid : TR("aucun", "none"));
   minitel_ui_write_line(5, line3);
 
   for (uint8_t row = 0; row < WIFI_VISIBLE_ROWS; ++row) {
@@ -1319,12 +1345,12 @@ void render_wifi_screen() {
     }
   }
 
-  minitel_ui_write_line(WIFI_INFO_ROW, "* = mot de passe requis");
+  minitel_ui_write_line(WIFI_INFO_ROW, TR("* = mot de passe requis", "* = password required"));
   render_status_line();
 }
 
 void render_settings_screen() {
-  const char* footer = "ENVOI ouvrir/edit REP/SUITE nav RETOUR";
+  const char* footer = TR("ENVOI ouvrir/edit REP/SUITE nav RETOUR", "ENVOI open/edit REP/SUITE nav RETOUR");
   render_frame_with_current_topbar("SETTINGS", footer);
 
   char line[41];
@@ -1341,38 +1367,39 @@ void render_settings_screen() {
            sizeof(line),
            "%c Docs token: %s",
            g_app.settings_view.selected_index == 2 ? '>' : ' ',
-           g_settings.api_token[0] ? "configure" : "vide");
+           g_settings.api_token[0] ? TR("configure", "set") : TR("vide", "empty"));
   minitel_ui_write_line(5, line);
 
   snprintf(line,
            sizeof(line),
-           "%c IA URL: %.30s",
+           TR("%c IA URL: %.30s", "%c AI URL: %.30s"),
            g_app.settings_view.selected_index == 3 ? '>' : ' ',
            g_settings.ai_base_url);
   minitel_ui_write_line(6, line);
 
   snprintf(line,
            sizeof(line),
-           "%c IA key: %s",
+           TR("%c IA key: %s", "%c AI key: %s"),
            g_app.settings_view.selected_index == 4 ? '>' : ' ',
-           g_settings.ai_api_key[0] ? "configuree" : "vide");
+           g_settings.ai_api_key[0] ? TR("configuree", "set") : TR("vide", "empty"));
   minitel_ui_write_line(7, line);
 
   snprintf(line,
            sizeof(line),
-           "%c IA modele: %.26s",
+           TR("%c IA modele: %.26s", "%c AI model: %.26s"),
            g_app.settings_view.selected_index == 5 ? '>' : ' ',
            g_settings.ai_model);
   minitel_ui_write_line(8, line);
 
   // The assistant's tools run on Bibliotek: without its URL and token, the chat stays direct.
-  const char* tools_state = "coupes";
+  const char* tools_state = TR("coupes", "off");
   if (g_settings.ai_tools) {
-    tools_state = g_settings.api_url[0] && g_settings.api_token[0] ? "actifs (notes)" : "actifs, sans Docs";
+    tools_state = g_settings.api_url[0] && g_settings.api_token[0] ? TR("actifs (notes)", "on (notes)")
+                                                                   : TR("actifs, sans Docs", "on, no Docs");
   }
   snprintf(line,
            sizeof(line),
-           "%c Outils IA: %s",
+           TR("%c Outils IA: %s", "%c AI tools: %s"),
            g_app.settings_view.selected_index == SETTINGS_AI_TOOLS_INDEX ? '>' : ' ',
            tools_state);
   minitel_ui_write_line(9, line);
@@ -1386,45 +1413,49 @@ void render_settings_screen() {
 
   const char* reset_line = "  Reset settings";
   if (g_app.settings_view.selected_index == SETTINGS_RESET_INDEX) {
-    reset_line = g_app.settings_view.reset_armed ? "> Reset settings ? ENVOI confirme" : "> Reset settings";
+    reset_line = g_app.settings_view.reset_armed
+                     ? TR("> Reset settings ? ENVOI confirme", "> Reset settings ? ENVOI confirms")
+                     : "> Reset settings";
   }
   snprintf(line,
            sizeof(line),
-           "%c Code PIN: %s",
+           TR("%c Code PIN: %s", "%c PIN code: %s"),
            g_app.settings_view.selected_index == SETTINGS_PIN_INDEX ? '>' : ' ',
-           lock_screen_required() ? "actif" : "aucun");
+           lock_screen_required() ? TR("actif", "on") : TR("aucun", "none"));
   minitel_ui_write_line(11, line);
   minitel_ui_write_line(12, reset_line);
-  minitel_ui_write_line(14, g_clock_service.is_synced() ? "Heure NTP synchronisee" : "Heure NTP en attente");
+  minitel_ui_write_line(14, g_clock_service.is_synced() ? TR("Heure NTP synchronisee", "NTP time synced")
+                                                        : TR("Heure NTP en attente", "NTP time pending"));
 
   snprintf(line,
            sizeof(line),
            "Docs: %.34s",
-           net::store_available() ? "Bibliotek connectee" : net::store_error());
+           net::store_available() ? TR("Bibliotek connectee", "Bibliotek connected") : net::store_error());
   minitel_ui_write_line(15, line);
 
-  const char* chat_status = "config incomplete";
+  const char* chat_status = TR("config incomplete", "setup incomplete");
   if (net::chat_error()[0] != '\0') {
     chat_status = net::chat_error();
   } else if (chat_configured()) {
-    chat_status = "prete";
+    chat_status = TR("prete", "ready");
   }
-  snprintf(line, sizeof(line), "IA: %.36s", chat_status);
+  snprintf(line, sizeof(line), TR("IA: %.36s", "AI: %.36s"), chat_status);
   minitel_ui_write_line(16, line);
   render_status_line();
 }
 
 void render_chat_screen() {
-  const char* footer = g_app.chat.awaiting ? "ENVOI oui  CORRECTION non  ANN abandon"
-                                           : "ENVOI prompt REP/SUITE RET home ANN raz";
+  const char* footer = g_app.chat.awaiting
+                           ? TR("ENVOI oui  CORRECTION non  ANN abandon", "ENVOI yes  CORRECTION no  ANN drop")
+                           : TR("ENVOI prompt REP/SUITE RET home ANN raz", "ENVOI prompt REP/SUITE RET home ANN clear");
   render_frame_with_current_topbar("CHAT", footer);
 
   char model_line[41];
-  const char* model = g_settings.ai_model[0] ? g_settings.ai_model : "non configure";
+  const char* model = g_settings.ai_model[0] ? g_settings.ai_model : TR("non configure", "not set");
   if (chat_agent_mode()) {
-    snprintf(model_line, sizeof(model_line), "Modele: %.24s +outils", model);
+    snprintf(model_line, sizeof(model_line), TR("Modele: %.24s +outils", "Model: %.24s +tools"), model);
   } else {
-    snprintf(model_line, sizeof(model_line), "Modele: %.31s", model);
+    snprintf(model_line, sizeof(model_line), TR("Modele: %.31s", "Model: %.31s"), model);
   }
   minitel_ui_write_line(CHAT_MODEL_ROW, model_line);
 
@@ -1442,7 +1473,7 @@ void render_chat_screen() {
 }
 
 void render_text_input_screen() {
-  const char* footer = "ENVOI valider SOM/GUI curseur RETOUR";
+  const char* footer = TR("ENVOI valider SOM/GUI curseur RETOUR", "ENVOI confirm SOM/GUI cursor RETOUR");
   render_frame_with_current_topbar("INPUT", footer);
   minitel_ui_write_line(3, g_app.text_input.title);
   minitel_ui_write_line(4, g_app.text_input.prompt);
@@ -1508,10 +1539,10 @@ void editor_close_overlay() {
 
 const char* editor_command_label(editor_command_t command) {
   switch (command) {
-    case EDITOR_COMMAND_SEARCH: return "Recherche";
-    case EDITOR_COMMAND_GOTO_LINE: return "Aller ligne";
-    case EDITOR_COMMAND_QUIT: return "Quitter";
-    case EDITOR_COMMAND_REDRAW: return "Redessiner";
+    case EDITOR_COMMAND_SEARCH: return TR("Recherche", "Search");
+    case EDITOR_COMMAND_GOTO_LINE: return TR("Aller ligne", "Go to line");
+    case EDITOR_COMMAND_QUIT: return TR("Quitter", "Quit");
+    case EDITOR_COMMAND_REDRAW: return TR("Redessiner", "Redraw");
   }
   return "";
 }
@@ -1570,7 +1601,7 @@ void editor_redraw_screen() {
   editor_close_overlay();
   minitel_ui_force_full_refresh();
   g_app.full_redraw_needed = true;
-  set_status("Ecran redessine");
+  set_status(TR("Ecran redessine", "Screen redrawn"));
 }
 
 bool parse_positive_line_number(const char* text, uint16_t* out_line_number) {
@@ -1600,7 +1631,7 @@ bool parse_positive_line_number(const char* text, uint16_t* out_line_number) {
 void editor_apply_search_query(const char* query) {
   switch_screen(SCREEN_EDITOR);
   if (!query || query[0] == '\0') {
-    set_status("Recherche vide");
+    set_status(TR("Recherche vide", "Empty search"));
     return;
   }
 
@@ -1612,14 +1643,14 @@ void editor_apply_search_query(const char* query) {
           : static_cast<uint16_t>(editor_body_length());
   if (!editor_layout::find_forward(
           g_app.editor.document.body, g_app.editor.last_search, start_index, &found_index)) {
-    set_status("Texte introuvable");
+    set_status(TR("Texte introuvable", "Text not found"));
     return;
   }
 
   g_app.editor.cursor_index = found_index;
   editor_sync_preferred_visual_col();
   editor_ensure_cursor_visible();
-  set_status("Recherche trouvee");
+  set_status(TR("Recherche trouvee", "Found"));
 }
 
 void editor_apply_goto_line(const char* text) {
@@ -1627,7 +1658,7 @@ void editor_apply_goto_line(const char* text) {
 
   uint16_t requested_line = 0;
   if (!parse_positive_line_number(text, &requested_line)) {
-    set_status("Ligne invalide");
+    set_status(TR("Ligne invalide", "Invalid line"));
     return;
   }
 
@@ -1643,7 +1674,7 @@ void editor_apply_goto_line(const char* text) {
   editor_ensure_cursor_visible();
 
   char status[41];
-  snprintf(status, sizeof(status), "Ligne %u", static_cast<unsigned>(requested_line));
+  snprintf(status, sizeof(status), TR("Ligne %u", "Line %u"), static_cast<unsigned>(requested_line));
   set_status(status);
 }
 
@@ -1651,13 +1682,15 @@ void editor_execute_command(editor_command_t command) {
   switch (command) {
     case EDITOR_COMMAND_SEARCH:
       editor_request_text_command(
-          TEXT_INPUT_SEARCH_QUERY, "Recherche", "Texte a trouver", g_app.editor.last_search);
+          TEXT_INPUT_SEARCH_QUERY, TR("Recherche", "Search"), TR("Texte a trouver", "Text to find"),
+          g_app.editor.last_search);
       return;
     case EDITOR_COMMAND_GOTO_LINE: {
       char line_value[8];
       const editor_layout::Position position = editor_cursor_position();
       snprintf(line_value, sizeof(line_value), "%u", static_cast<unsigned>(position.logical_line + 1));
-      editor_request_text_command(TEXT_INPUT_GOTO_LINE, "Aller ligne", "Numero de ligne", line_value);
+      editor_request_text_command(TEXT_INPUT_GOTO_LINE, TR("Aller ligne", "Go to line"),
+                                  TR("Numero de ligne", "Line number"), line_value);
       return;
     }
     case EDITOR_COMMAND_QUIT:
@@ -1683,9 +1716,9 @@ void render_editor_command_menu() {
 }
 
 void render_editor_confirm_exit() {
-  minitel_ui_write_line(16, "Quitter sans sauver ?");
+  minitel_ui_write_line(16, TR("Quitter sans sauver ?", "Quit without saving?"));
   minitel_ui_write_line(17, g_app.editor.document.title);
-  minitel_ui_write_line(18, "ENVOI oui RETOUR/ANN non");
+  minitel_ui_write_line(18, TR("ENVOI oui RETOUR/ANN non", "ENVOI yes RETOUR/ANN no"));
 }
 
 void render_editor_screen() {
@@ -1693,7 +1726,7 @@ void render_editor_screen() {
   if (g_app.editor.overlay == EDITOR_OVERLAY_COMMAND_MENU) {
     footer = "REP/SUITE nav ENVOI ok ANN/RET";
   } else if (g_app.editor.overlay == EDITOR_OVERLAY_CONFIRM_EXIT) {
-    footer = "ENVOI oui RETOUR/ANN non";
+    footer = TR("ENVOI oui RETOUR/ANN non", "ENVOI yes RETOUR/ANN no");
   }
   render_frame_with_current_topbar("EDITOR", footer);
   editor_ensure_cursor_visible();
@@ -1701,7 +1734,7 @@ void render_editor_screen() {
   char title_line[41];
   const char* title_suffix = g_app.editor.dirty ? " *" : "";
   if (g_app.editor.document.truncated) {
-    title_suffix = " [lecture seule]";
+    title_suffix = TR(" [lecture seule]", " [read-only]");
   }
   snprintf(title_line,
            sizeof(title_line),
@@ -1733,9 +1766,9 @@ void render_editor_screen() {
   if (g_app.shown_busy[0] != '\0') {
     safe_copy(status, sizeof(status), line_text);  // saving: the timer replaces Ln/Col
   } else if (g_app.editor.overlay == EDITOR_OVERLAY_COMMAND_MENU) {
-    snprintf(status, sizeof(status), "Menu commandes");
+    snprintf(status, sizeof(status), TR("Menu commandes", "Command menu"));
   } else if (g_app.editor.overlay == EDITOR_OVERLAY_CONFIRM_EXIT) {
-    snprintf(status, sizeof(status), "Document modifie");
+    snprintf(status, sizeof(status), TR("Document modifie", "Document changed"));
   } else if (g_app.status_message[0]) {
     snprintf(status,
              sizeof(status),
@@ -1828,21 +1861,24 @@ void switch_screen(screen_id_t screen) {
 void on_wifi_connected(const net_request_t& request, const net_reply_t& reply) {
   const bool open = request.params.wifi.password[0] == '\0';
   if (!reply.ok) {
-    set_status(open ? "Connexion ouverte KO" : "Connexion WiFi KO");
+    set_status(open ? TR("Connexion ouverte KO", "Open network failed")
+                    : TR("Connexion WiFi KO", "WiFi connection failed"));
     return;
   }
   // Remembered here: the network task never writes NVS.
   safe_copy(g_settings.wifi_ssid, sizeof(g_settings.wifi_ssid), request.params.wifi.ssid);
   safe_copy(g_settings.wifi_password, sizeof(g_settings.wifi_password), request.params.wifi.password);
   g_settings_service.save(g_settings);
-  check_store(open ? "Connexion ouverte OK" : "Connexion WiFi OK");
+  check_store(open ? TR("Connexion ouverte OK", "Open network connected")
+                   : TR("Connexion WiFi OK", "WiFi connected"));
 }
 
 // Connects to `ssid` and saves it as the default network. A failed or cancelled connect
 // goes back to the saved network (when it is another one) instead of leaving the radio
 // retrying this one; the link watch in app_loop then checks the server again.
 void connect_wifi(const char* ssid, const char* password) {
-  net_request_t request = net::make(NET_WIFI_CONNECT, "Connexion WiFi...", on_wifi_connected);
+  net_request_t request =
+      net::make(NET_WIFI_CONNECT, TR("Connexion WiFi...", "Connecting WiFi..."), on_wifi_connected);
   auto& wifi = request.params.wifi;
   safe_copy(wifi.ssid, sizeof(wifi.ssid), ssid);
   safe_copy(wifi.password, sizeof(wifi.password), password);
@@ -1896,19 +1932,19 @@ void on_wifi_scanned(const net_request_t& request, const net_reply_t& reply) {
   g_app.wifi.selected_index = 0;
   g_app.wifi.scroll_offset = 0;
   app_log_info("wifi", "scan_wifi_networks count=%u", static_cast<unsigned>(g_app.wifi.network_count));
-  set_status(g_app.wifi.network_count > 0 ? "Scan termine" : "Aucun reseau");
+  set_status(g_app.wifi.network_count > 0 ? TR("Scan termine", "Scan done") : TR("Aucun reseau", "No network"));
 }
 
 // The list on screen stays until the new one arrives.
 void scan_wifi_networks() {
-  net_request_t request = net::make(NET_WIFI_SCAN, "Scan WiFi...", on_wifi_scanned);
+  net_request_t request = net::make(NET_WIFI_SCAN, TR("Scan WiFi...", "WiFi scan..."), on_wifi_scanned);
   net::submit(request);
 }
 
 void editor_insert_char(char ch) {
   int length = editor_body_length();
   if (length >= STORE_MAX_BODY_LENGTH) {
-    set_status("Document plein");
+    set_status(TR("Document plein", "Document full"));
     return;
   }
 
@@ -2017,30 +2053,30 @@ void editor_page_move(int delta) {
 void on_document_created(const net_request_t& request, const net_reply_t& reply) {
   (void)request;
   if (!reply.ok) {
-    set_status_from_reply_or(reply, "Creation document KO");
+    set_status_from_reply_or(reply, TR("Creation document KO", "Document not created"));
     return;
   }
   g_app.explorer.stale = true;  // listed again when the editor closes
   show_document(reply.data.document, 0, SCREEN_FILES);
-  set_status("Document cree");
+  set_status(TR("Document cree", "Document created"));
 }
 
 void on_folder_created(const net_request_t& request, const net_reply_t& reply) {
   (void)request;
   if (!reply.ok) {
-    set_status_from_reply_or(reply, "Creation dossier KO");
+    set_status_from_reply_or(reply, TR("Creation dossier KO", "Folder not created"));
     return;
   }
-  refresh_explorer("Dossier cree");
+  refresh_explorer(TR("Dossier cree", "Folder created"));
 }
 
 void on_tags_updated(const net_request_t& request, const net_reply_t& reply) {
   (void)request;
   if (!reply.ok) {
-    set_status_from_reply_or(reply, "Maj tags KO");
+    set_status_from_reply_or(reply, TR("Maj tags KO", "Tags not updated"));
     return;
   }
-  refresh_explorer("Tags mis a jour");
+  refresh_explorer(TR("Tags mis a jour", "Tags updated"));
 }
 
 void apply_text_input() {
@@ -2061,7 +2097,7 @@ void apply_text_input() {
       safe_copy(g_settings.api_url, sizeof(g_settings.api_url), g_app.text_input.buffer);
       g_settings_service.save(g_settings);
       switch_screen(SCREEN_SETTINGS);
-      check_store("Docs URL enregistree");
+      check_store(TR("Docs URL enregistree", "Docs URL saved"));
       break;
 
     case TEXT_INPUT_API_TOKEN:
@@ -2071,21 +2107,21 @@ void apply_text_input() {
         start_lan_updates();  // the token is also the network update password
       }
       switch_screen(SCREEN_SETTINGS);
-      check_store("Docs token enregistre");
+      check_store(TR("Docs token enregistre", "Docs token saved"));
       break;
 
     case TEXT_INPUT_AI_BASE_URL:
       safe_copy(g_settings.ai_base_url, sizeof(g_settings.ai_base_url), g_app.text_input.buffer);
       g_settings_service.save(g_settings);
       switch_screen(SCREEN_SETTINGS);
-      set_status("IA URL enregistree");
+      set_status(TR("IA URL enregistree", "AI URL saved"));
       break;
 
     case TEXT_INPUT_AI_API_KEY:
       safe_copy(g_settings.ai_api_key, sizeof(g_settings.ai_api_key), g_app.text_input.buffer);
       g_settings_service.save(g_settings);
       switch_screen(SCREEN_SETTINGS);
-      set_status("IA key enregistree");
+      set_status(TR("IA key enregistree", "AI key saved"));
       break;
 
     case TEXT_INPUT_TIMEZONE:
@@ -2093,16 +2129,17 @@ void apply_text_input() {
       g_settings_service.save(g_settings);
       g_clock_service.set_timezone(g_settings.timezone);
       switch_screen(SCREEN_SETTINGS);
-      set_status("Timezone mise a jour");
+      set_status(TR("Timezone mise a jour", "Timezone updated"));
       break;
 
     case TEXT_INPUT_NEW_DOCUMENT: {
       switch_screen(SCREEN_FILES);
       if (text_input_is_blank()) {
-        set_status("Nom vide: rien cree");
+        set_status(TR("Nom vide: rien cree", "Empty name: nothing created"));
         break;
       }
-      net_request_t request = net::make(NET_CREATE_DOCUMENT, "Creation du document...", on_document_created);
+      net_request_t request =
+          net::make(NET_CREATE_DOCUMENT, TR("Creation du document...", "Creating document..."), on_document_created);
       safe_copy(request.params.create.folder, sizeof(request.params.create.folder), g_app.explorer.current_folder);
       safe_copy(request.params.create.name, sizeof(request.params.create.name), g_app.text_input.buffer);
       net::submit(request);
@@ -2113,10 +2150,11 @@ void apply_text_input() {
       switch_screen(SCREEN_FILES);
       if (text_input_is_blank()) {
         // An empty name would resolve to the current folder and re-create it.
-        set_status("Nom vide: rien cree");
+        set_status(TR("Nom vide: rien cree", "Empty name: nothing created"));
         break;
       }
-      net_request_t request = net::make(NET_CREATE_FOLDER, "Creation du dossier...", on_folder_created);
+      net_request_t request =
+          net::make(NET_CREATE_FOLDER, TR("Creation du dossier...", "Creating folder..."), on_folder_created);
       safe_copy(request.params.create.folder, sizeof(request.params.create.folder), g_app.explorer.current_folder);
       safe_copy(request.params.create.name, sizeof(request.params.create.name), g_app.text_input.buffer);
       net::submit(request);
@@ -2125,7 +2163,8 @@ void apply_text_input() {
 
     case TEXT_INPUT_EDIT_TAGS: {
       switch_screen(SCREEN_FILES);
-      net_request_t request = net::make(NET_UPDATE_TAGS, "Mise a jour des tags...", on_tags_updated);
+      net_request_t request =
+          net::make(NET_UPDATE_TAGS, TR("Mise a jour des tags...", "Updating tags..."), on_tags_updated);
       safe_copy(request.params.tags.id,
                 sizeof(request.params.tags.id),
                 g_app.explorer.items[g_app.explorer.selected_index].document_id);
@@ -2139,7 +2178,8 @@ void apply_text_input() {
       request_explorer_listing(g_app.explorer.current_folder,
                                g_app.text_input.buffer,
                                nullptr,
-                               g_app.text_input.buffer[0] ? "Filtre active" : "Filtre retire");
+                               g_app.text_input.buffer[0] ? TR("Filtre active", "Filter on")
+                                                          : TR("Filtre retire", "Filter off"));
       break;
 
     case TEXT_INPUT_SEARCH_QUERY:
@@ -2175,15 +2215,15 @@ void apply_text_input() {
 void on_captured(const net_request_t& request, const net_reply_t& reply) {
   (void)request;
   if (reply.ok) {
-    set_status("Note ajoutee a inbox/inbox.md");
+    set_status(TR("Note ajoutee a inbox/inbox.md", "Note added to inbox/inbox.md"));
   } else {
-    set_status_from_reply_or(reply, "Capture impossible");
+    set_status_from_reply_or(reply, TR("Capture impossible", "Capture failed"));
   }
 }
 
 void on_capture(const char* text) {
   if (!text || text[0] == '\0') {
-    set_status("Capture vide: rien note");
+    set_status(TR("Capture vide: rien note", "Empty capture: nothing saved"));
     return;
   }
   char line[CHAT_MAX_PROMPT_LENGTH + 24];
@@ -2195,7 +2235,7 @@ void on_capture(const char* text) {
   } else {
     snprintf(line, sizeof(line), "- %s", text);
   }
-  net_request_t request = net::make(NET_APPEND_LINE, "Capture...", on_captured);
+  net_request_t request = net::make(NET_APPEND_LINE, TR("Capture...", "Saving note..."), on_captured);
   safe_copy(request.params.append.id, sizeof(request.params.append.id), INBOX_FILE);
   safe_copy(request.params.append.text, sizeof(request.params.append.text), line);
   net::submit(request);
@@ -2203,7 +2243,7 @@ void on_capture(const char* text) {
 
 void on_journal_heading_added(const net_request_t& request, const net_reply_t& reply) {
   if (!reply.ok) {
-    set_status_from_reply_or(reply, "Journal indisponible");
+    set_status_from_reply_or(reply, TR("Journal indisponible", "Journal unavailable"));
     return;
   }
   char local_id[sizeof(request.params.append.id) + 1];
@@ -2215,7 +2255,7 @@ void on_journal_heading_added(const net_request_t& request, const net_reply_t& r
 void open_journal() {
   struct tm now;
   if (!g_clock_service.local_time(&now)) {
-    set_status("Journal: heure pas synchronisee");
+    set_status(TR("Journal: heure pas synchronisee", "Journal: clock not synced"));
     return;
   }
   char date[11];
@@ -2242,7 +2282,8 @@ void open_home_item(uint8_t index) {
       refresh_explorer(nullptr);
       return;
     case 3:
-      shell::request_text_input(SCREEN_HOME, "Capture rapide", "Idee, note, rappel...", "", false, on_capture);
+      shell::request_text_input(SCREEN_HOME, TR("Capture rapide", "Quick capture"),
+                                TR("Idee, note, rappel...", "Idea, note, reminder..."), "", false, on_capture);
       return;
     case 4:
       open_journal();
@@ -2359,7 +2400,7 @@ void handle_files_input(const input_event_t& event) {
     return;
   }
   if (event.type == INPUT_EVENT_CANCEL) {
-    request_explorer_listing(g_app.explorer.current_folder, "", nullptr, "Filtre retire");
+    request_explorer_listing(g_app.explorer.current_folder, "", nullptr, TR("Filtre retire", "Filter off"));
     return;
   }
 
@@ -2368,27 +2409,27 @@ void handle_files_input(const input_event_t& event) {
       case 'n':
       case 'N':
         if (strcmp(g_app.explorer.current_folder, "/") == 0) {
-          set_status("Racine virtuelle: cree un dossier");
+          set_status(TR("Racine virtuelle: cree un dossier", "Virtual root: create a folder"));
           return;
         }
         request_text_input(TEXT_INPUT_NEW_DOCUMENT,
                            SCREEN_FILES,
-                           "Nouveau document",
-                           "Nom (.md par defaut)",
+                           TR("Nouveau document", "New document"),
+                           TR("Nom (.md par defaut)", "Name (.md by default)"),
                            "",
                            false);
         return;
       case 'd':
       case 'D':
-        request_text_input(
-            TEXT_INPUT_NEW_FOLDER, SCREEN_FILES, "Nouveau dossier", "Nom du sous-dossier", "", false);
+        request_text_input(TEXT_INPUT_NEW_FOLDER, SCREEN_FILES, TR("Nouveau dossier", "New folder"),
+                           TR("Nom du sous-dossier", "Subfolder name"), "", false);
         return;
       case 'f':
       case 'F':
         request_text_input(TEXT_INPUT_FILTER_TAG,
                            SCREEN_FILES,
-                           "Filtre tag",
-                           "Laisser vide pour tout",
+                           TR("Filtre tag", "Tag filter"),
+                           TR("Laisser vide pour tout", "Leave empty for all"),
                            g_app.explorer.tag_filter,
                            false);
         return;
@@ -2398,8 +2439,8 @@ void handle_files_input(const input_event_t& event) {
             g_app.explorer.items[g_app.explorer.selected_index].kind == EXPLORER_ITEM_DOCUMENT) {
           request_text_input(TEXT_INPUT_EDIT_TAGS,
                              SCREEN_FILES,
-                             "Tags document",
-                             "Liste separee par virgules",
+                             TR("Tags document", "Document tags"),
+                             TR("Liste separee par virgules", "Comma-separated list"),
                              g_app.explorer.items[g_app.explorer.selected_index].meta,
                              false);
         }
@@ -2480,7 +2521,7 @@ void handle_wifi_input(const input_event_t& event) {
 
     request_text_input(TEXT_INPUT_WIFI_PASSWORD,
                        SCREEN_WIFI,
-                       "Mot de passe WiFi",
+                       TR("Mot de passe WiFi", "WiFi password"),
                        network.ssid,
                        "",
                        true);
@@ -2527,7 +2568,7 @@ void handle_settings_input(const input_event_t& event) {
       request_text_input(TEXT_INPUT_API_URL,
                          SCREEN_SETTINGS,
                          "Docs API URL",
-                         "Base URL Bibliotek",
+                         TR("Base URL Bibliotek", "Bibliotek base URL"),
                          g_settings.api_url,
                          false);
       break;
@@ -2542,16 +2583,16 @@ void handle_settings_input(const input_event_t& event) {
     case 3:
       request_text_input(TEXT_INPUT_AI_BASE_URL,
                          SCREEN_SETTINGS,
-                         "IA URL",
-                         "Base URL Gradient",
+                         TR("IA URL", "AI URL"),
+                         TR("Base URL Gradient", "Gradient base URL"),
                          g_settings.ai_base_url,
                          false);
       break;
     case 4:
       request_text_input(TEXT_INPUT_AI_API_KEY,
                          SCREEN_SETTINGS,
-                         "IA key",
-                         "Bearer key Gradient",
+                         TR("IA key", "AI key"),
+                         TR("Bearer key Gradient", "Gradient bearer key"),
                          g_settings.ai_api_key,
                          true);
       break;
@@ -2561,30 +2602,32 @@ void handle_settings_input(const input_event_t& event) {
     case SETTINGS_AI_TOOLS_INDEX:
       g_settings.ai_tools = !g_settings.ai_tools;
       g_settings_service.save(g_settings);
-      set_status(g_settings.ai_tools ? "L'IA peut lire et ecrire tes notes" : "IA sans acces aux notes");
+      set_status(g_settings.ai_tools ? TR("L'IA peut lire et ecrire tes notes", "The AI can read and write your notes")
+                                     : TR("IA sans acces aux notes", "AI without access to notes"));
       break;
     case SETTINGS_TIMEZONE_INDEX:
       request_text_input(TEXT_INPUT_TIMEZONE,
                          SCREEN_SETTINGS,
                          "Timezone",
-                         "Ex: Europe/Paris",
+                         TR("Ex: Europe/Paris", "E.g. Europe/London"),
                          g_settings.timezone,
                          false);
       break;
     case SETTINGS_PIN_INDEX:
-      shell::request_text_input(SCREEN_SETTINGS, "Code PIN", "4 a 8 chiffres, vide = aucun", "", true,
+      shell::request_text_input(SCREEN_SETTINGS, TR("Code PIN", "PIN code"),
+                                TR("4 a 8 chiffres, vide = aucun", "4 to 8 digits, empty = none"), "", true,
                                 lock_screen_change_pin);
       break;
     case SETTINGS_RESET_INDEX:
       if (!reset_confirmed) {
         g_app.settings_view.reset_armed = true;
-        set_status("ENVOI encore pour tout effacer");
+        set_status(TR("ENVOI encore pour tout effacer", "ENVOI again to erase everything"));
         break;
       }
       g_settings_service.reset();
       g_settings_service.load(&g_settings);
       g_clock_service.set_timezone(g_settings.timezone);
-      check_store("Settings reinitialises");
+      check_store(TR("Settings reinitialises", "Settings reset"));
       g_app.full_redraw_needed = true;
       break;
   }
@@ -2725,14 +2768,14 @@ void prepare_save(net_request_t& request, net_reply_t& reply) {
 
 void on_document_saved(const net_request_t& request, const net_reply_t& reply) {
   if (!reply.ok) {
-    set_status_from_reply_or(reply, "Sauvegarde impossible");
+    set_status_from_reply_or(reply, TR("Sauvegarde impossible", "Save failed"));
     return;
   }
   // Edits typed during the save are not on the server yet.
   if (g_app.editor.active && g_app.editor.revision == request.params.save.revision) {
     g_app.editor.dirty = false;
   }
-  set_status("Document sauvegarde");
+  set_status(TR("Document sauvegarde", "Document saved"));
 }
 
 void handle_editor_input(const input_event_t& event) {
@@ -2789,7 +2832,7 @@ void handle_editor_input(const input_event_t& event) {
     if (event.type == INPUT_EVENT_ENTER) {
       g_app.editor.dirty = false;
       editor_leave();
-      set_status("Edition abandonnee");
+      set_status(TR("Edition abandonnee", "Changes discarded"));
       return;
     }
     if (event.type == INPUT_EVENT_ESCAPE || event.type == INPUT_EVENT_CANCEL) {
@@ -2806,7 +2849,7 @@ void handle_editor_input(const input_event_t& event) {
       case INPUT_EVENT_ENTER:
       case INPUT_EVENT_BACKSPACE:
       case INPUT_EVENT_SAVE:
-        set_status("Lecture seule: doc trop long");
+        set_status(TR("Lecture seule: doc trop long", "Read-only: document too long"));
         return;
       default:
         break;
@@ -2850,7 +2893,7 @@ void handle_editor_input(const input_event_t& event) {
     case INPUT_EVENT_SAVE: {
       // Typing goes on while it saves. A save cannot change the explorer listing, so no
       // folder reload here.
-      net_request_t request = net::make(NET_SAVE_DOCUMENT, "Sauvegarde...", on_document_saved);
+      net_request_t request = net::make(NET_SAVE_DOCUMENT, TR("Sauvegarde...", "Saving..."), on_document_saved);
       request.prepare = prepare_save;
       net::submit(request);
       editor_close_overlay();
@@ -2876,7 +2919,7 @@ void dispatch_input(const input_event_t& event) {
     clear_status();
     net::cancel();
     if (g_app.status_message[0] == '\0') {
-      set_status("Requete annulee");  // unless the request said more (chat)
+      set_status(TR("Requete annulee", "Request cancelled"));  // unless the request said more (chat)
     }
     return;
   }
@@ -3037,8 +3080,10 @@ extern "C" void app_setup(void) {
   g_clock_service.begin(g_settings.timezone);
 
   // The logo takes a while: the network task connects meanwhile.
-  render_boot_screen(joining ? "Connexion WiFi en arriere-plan" : "Mode hors ligne",
-                     g_settings.wifi_ssid[0] ? g_settings.wifi_ssid : "Aucun reseau enregistre");
+  render_boot_screen(joining ? TR("Connexion WiFi en arriere-plan", "Joining WiFi in the background")
+                             : TR("Mode hors ligne", "Offline mode"),
+                     g_settings.wifi_ssid[0] ? g_settings.wifi_ssid
+                                             : TR("Aucun reseau enregistre", "No saved network"));
 
   g_app.screen = SCREEN_HOME;
   g_app.full_redraw_needed = true;
@@ -3065,7 +3110,7 @@ extern "C" void app_loop(void) {
         refresh_explorer(nullptr);
       }
     } else if (g_app.screen == SCREEN_CHAT && !wifi_connected) {
-      set_status("WiFi hors ligne");
+      set_status(TR("WiFi hors ligne", "WiFi offline"));
     }
   }
   g_clock_service.update(wifi_connected);  // NTP once the link is up
