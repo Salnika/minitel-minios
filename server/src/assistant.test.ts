@@ -448,4 +448,168 @@ describe("assistant API", () => {
     expect(noAnswer.json()).toEqual({ error: "accept must be a boolean" });
     expect(model.requests).toHaveLength(0);
   });
+
+  it("speaks English when the Minitel asks for it", async () => {
+    await writeNote("notes/courses.md", "- lait\n- pain\n");
+    const model = fakeModel(
+      stream([
+        toolCall(0, "call_a", "read_file", '{"path":"notes/courses.md"}'),
+        toolCall(1, "call_b", "read_file", '{"path":"notes/absent.md"}'),
+        finish("tool_calls"),
+      ]),
+      stream([text("Milk and bread are left."), finish("stop")]),
+    );
+    await start(model);
+
+    const response = await ask({
+      lang: "en",
+      now: "2026-10-20 14:32",
+      history: [
+        { user: "Tidy up", assistant: "Done.", actions: "read notes/a.md\nnew notes/b.md" },
+      ],
+      prompt: "What is left on my shopping list?",
+    });
+
+    expect(summarize(response.body)).toEqual({
+      actions: ["read notes/courses.md", "read notes/absent.md (error)"],
+      text: "Milk and bread are left.",
+      thinking: false,
+      finishReason: "stop",
+      done: true,
+    });
+    const [first, second] = model.requests;
+    const system = String(first?.body.messages[0]?.content);
+    expect(system).toContain("It is Tuesday 20 October 2026, 14:32.");
+    expect(system).toContain("A previous answer may start with (Tools used: ...)");
+    expect(system).toContain(
+      "Answer in English, in plain text without markdown, in 400 characters",
+    );
+    // The data keeps its French names.
+    expect(system).toContain(
+      "projets/<name>/ holds projet.md (title, Statut, Objectif, Prochaine etape), taches.md",
+    );
+    expect(first?.body.messages.slice(1)).toEqual([
+      { role: "user", content: "Tidy up" },
+      { role: "assistant", content: "(Tools used: read notes/a.md; new notes/b.md)\nDone." },
+      { role: "user", content: "What is left on my shopping list?" },
+    ]);
+    expect(second?.body.messages.slice(-2)).toEqual([
+      {
+        role: "tool",
+        tool_call_id: "call_a",
+        content: "notes/courses.md (2 lines):\n- lait\n- pain",
+      },
+      { role: "tool", tool_call_id: "call_b", content: "Error: File not found" },
+    ]);
+  });
+
+  it("keeps the conversation's language through its confirmations", async () => {
+    await writeNote("notes/courses.md", "- pain\n");
+    await writeNote("notes/vieux.md", "- lait\n");
+    const model = fakeModel(
+      stream([
+        toolCall(
+          0,
+          "call_edit",
+          "edit_file",
+          JSON.stringify({
+            path: "notes/courses.md",
+            old_text: "- pain",
+            new_text: "- pain complet",
+          }),
+        ),
+        toolCall(1, "call_rm", "delete_file", '{"path":"notes/vieux.md"}'),
+        finish("tool_calls"),
+      ]),
+      stream([text("Done, I kept the old list."), finish("stop")]),
+    );
+    await start(model);
+
+    const asked = summarize(
+      (await ask({ lang: "en", prompt: "Whole bread, and drop the old list" })).body,
+    );
+    expect(asked.confirm?.text).toBe('Edit notes/courses.md: "- pain" -> "- pain complet"');
+
+    // The answers say nothing of the language: the conversation keeps its own.
+    const accepted = summarize((await answer(asked.confirm?.id ?? "", true)).body);
+    expect(accepted).toMatchObject({
+      actions: ["edit notes/courses.md"],
+      confirm: { text: "Delete notes/vieux.md (1 line)" },
+    });
+    const refused = summarize((await answer(accepted.confirm?.id ?? "", false)).body);
+    expect(refused).toMatchObject({
+      actions: ["delete notes/vieux.md (denied)"],
+      text: "Done, I kept the old list.",
+    });
+    expect(await readNote("notes/courses.md")).toBe("- pain complet\n");
+    expect(await readNote("notes/vieux.md")).toBe("- lait\n");
+    expect(model.requests[1]?.body.messages.slice(-2)).toEqual([
+      { role: "tool", tool_call_id: "call_edit", content: "notes/courses.md edited." },
+      {
+        role: "tool",
+        tool_call_id: "call_rm",
+        content: "The user refused this action: do not do it again.",
+      },
+    ]);
+  });
+
+  it("reports failures in a few English words", async () => {
+    const model = fakeModel(
+      new Response("unauthorized", { status: 401 }),
+      stream([{ error: { message: "overloaded" } }]),
+      new Response('{"error":{"message":"tools are not supported"}}', { status: 400 }),
+      new Response('{"error":{"message":"bad request"}}', { status: 400 }),
+      stream([{ choices: [{ index: 0, delta: { reasoning: "Hmm..." } }] }, finish("length")]),
+      stream([finish("stop")]),
+    );
+    await start(model);
+
+    expect(summarize((await ask({ lang: "en", prompt: "Hi" })).body)).toMatchObject({
+      error: "AI invalid key",
+      done: true,
+    });
+    expect(summarize((await ask({ lang: "en", prompt: "Hi" })).body)).toMatchObject({
+      error: "AI error during the reply",
+    });
+    expect(summarize((await ask({ lang: "en", prompt: "Hi" })).body)).toMatchObject({
+      actions: ["no tool support"],
+      error: "AI request refused (400)",
+    });
+    expect(summarize((await ask({ lang: "en", prompt: "Hi" })).body)).toMatchObject({
+      thinking: true,
+      error: "Empty reply",
+    });
+    expect(String(model.requests[5]?.body.messages[0]?.content)).toContain(
+      "Now give your final answer",
+    );
+  });
+
+  it("speaks French for any other language", async () => {
+    const model = fakeModel(
+      stream([
+        toolCall(0, "call_a", "read_file", '{"path":"notes/absent.md"}'),
+        finish("tool_calls"),
+      ]),
+      stream([text("Elle n'existe pas."), finish("stop")]),
+      new Response("unauthorized", { status: 401 }),
+    );
+    await start(model);
+
+    const response = await ask({ lang: "de", now: "2026-10-20 14:32", prompt: "Lis ma note" });
+    expect(summarize(response.body)).toMatchObject({
+      actions: ["lit notes/absent.md (echec)"],
+      text: "Elle n'existe pas.",
+    });
+    const system = String(model.requests[0]?.body.messages[0]?.content);
+    expect(system).toContain("Nous sommes le mardi 20 octobre 2026, 14:32.");
+    expect(system).toContain("Réponds en français");
+    expect(model.requests[1]?.body.messages.at(-1)).toMatchObject({
+      content: "Erreur : File not found",
+    });
+
+    // Not even a string: French as well, not a bad request.
+    expect(summarize((await ask({ lang: true, prompt: "Salut" })).body)).toMatchObject({
+      error: "IA cle invalide",
+    });
+  });
 });

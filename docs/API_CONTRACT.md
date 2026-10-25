@@ -49,11 +49,11 @@ journal/2026-10-20.md     ## 14:05
 
 | Usage sur le Minitel | Route |
 |---|---|
-| Question à l'assistant avec outils | `POST /assistant {ai: {baseUrl, apiKey, model}, now?, history?, prompt}` |
+| Question à l'assistant avec outils | `POST /assistant {ai: {baseUrl, apiKey, model}, lang?, now?, history?, prompt}` |
 | Réponse à une confirmation | `POST /assistant/confirm {id, accept}`, 404 si elle a expiré (5 min) |
 
-- `ai` : les réglages IA du Minitel ; `baseUrl` doit être en `https`. `now` : son heure locale `AAAA-MM-JJ HH:MM`. `history` : ses derniers échanges `{user, assistant, actions?}`, les actions une par ligne.
-- Les deux routes répondent en `text/event-stream` : les chunks d'une chat completion (`choices[0].delta.content`, `reasoning_content`, `finish_reason`), plus `{"action": "lit notes/courses.md"}` pour chaque outil exécuté et `{"error": {"message"}}` en cas d'échec du modèle (message court, en français).
+- `ai` : les réglages IA du Minitel ; `baseUrl` doit être en `https`. `lang` : la langue du firmware, `fr` ou `en` (français si absent ou inconnu). `now` : son heure locale `AAAA-MM-JJ HH:MM`. `history` : ses derniers échanges `{user, assistant, actions?}`, les actions une par ligne.
+- Les deux routes répondent en `text/event-stream` : les chunks d'une chat completion (`choices[0].delta.content`, `reasoning_content`, `finish_reason`), plus `{"action": "lit notes/courses.md"}` pour chaque outil exécuté et `{"error": {"message"}}` en cas d'échec du modèle (message court). Réponse, actions, confirmations et erreurs suivent `lang`, que la confirmation garde.
 - Une action qui remplace, modifie ou supprime du texte envoie `{"confirm": {"id", "text"}}` puis termine le flux ; `POST /assistant/confirm` reprend la conversation dans sa propre réponse.
 - Un commentaire SSE part dès l'ouverture du flux, puis toutes les 10 s.
 

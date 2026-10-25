@@ -324,4 +324,180 @@ describe("assistant tools", () => {
       label: "liste les projets",
     });
   });
+
+  it("names and asks in English", async () => {
+    const english: ToolContext = { ...context, lang: "en" };
+    await writeNote("notes/courses.md", "- lait\n- pain\n");
+
+    const calls: Array<[string, Record<string, unknown>]> = [
+      ["list_folder", {}],
+      ["list_folder", { path: "notes" }],
+      ["read_file", { path: "notes/courses.md" }],
+      ["search", { query: "lait" }],
+      ["append_to_file", { path: "inbox/inbox.md", text: "- idee" }],
+      ["create_folder", { path: "archives" }],
+      ["move_file", { path: "notes/courses.md", new_path: "archives/courses.md" }],
+      ["list_projects", {}],
+      ["list_tasks", {}],
+      ["list_tasks", { project: "projets/robot" }],
+      ["add_task", { project: "robot", text: "Souder" }],
+      ["set_task_done", { file: "projets/robot/taches.md", line: 2 }],
+      ["set_task_done", { file: "projets/robot/taches.md", line: 2, done: false }],
+      ["create_project", { title: "Robot" }],
+    ];
+    const labels = await Promise.all(
+      calls.map(
+        async ([name, args]) => (await prepareTool(english, name, JSON.stringify(args))).label,
+      ),
+    );
+    expect(labels).toEqual([
+      "list the root",
+      "list notes/",
+      "read notes/courses.md",
+      'search "lait"',
+      "add to inbox/inbox.md",
+      "new folder archives/",
+      "move notes/courses.md to archives/courses.md",
+      "list projects",
+      "list tasks",
+      "list tasks of robot",
+      "add a task to robot",
+      "tick projets/robot/taches.md:2",
+      "untick projets/robot/taches.md:2",
+      'new project "Robot"',
+    ]);
+
+    expect(
+      await prepareTool(
+        english,
+        "write_file",
+        JSON.stringify({ path: "notes/idees.md", content: "Robot\n" }),
+      ),
+    ).toMatchObject({ label: "new notes/idees.md" });
+    expect(
+      await prepareTool(
+        english,
+        "write_file",
+        JSON.stringify({ path: "notes/courses.md", content: "" }),
+      ),
+    ).toMatchObject({
+      label: "replace notes/courses.md",
+      question: "Overwrite notes/courses.md (2 -> 0 lines)",
+    });
+    expect(
+      await prepareTool(
+        english,
+        "edit_file",
+        JSON.stringify({
+          path: "notes/courses.md",
+          old_text: "- pain",
+          new_text: "- pain complet",
+        }),
+      ),
+    ).toMatchObject({
+      label: "edit notes/courses.md",
+      question: 'Edit notes/courses.md: "- pain" -> "- pain complet"',
+    });
+    expect(
+      await prepareTool(
+        english,
+        "edit_file",
+        JSON.stringify({ path: "notes/courses.md", old_text: "- pain\n", new_text: "" }),
+      ),
+    ).toMatchObject({ question: 'Remove from notes/courses.md: "- pain"' });
+    expect(await prepareTool(english, "delete_file", '{"path":"notes/courses.md"}')).toMatchObject({
+      label: "delete notes/courses.md",
+      question: "Delete notes/courses.md (2 lines)",
+    });
+
+    expect(await prepareTool(english, "format_disk", "{}")).toEqual({
+      label: "tool format_disk",
+      error: 'unknown tool "format_disk"',
+    });
+    expect(await prepareTool(english, "read_file", '{"path": "notes/a')).toEqual({
+      label: "read ?",
+      error: "invalid or cut-off JSON arguments: retry the call with less text",
+    });
+    expect(await prepareTool(english, "read_file", "{}")).toEqual({
+      label: "read ?",
+      error: 'missing argument "path"',
+    });
+  });
+
+  it("answers the model in English", async () => {
+    const english: ToolContext = { ...context, lang: "en" };
+    async function callInEnglish(name: string, args: Record<string, unknown>): Promise<string> {
+      const prepared = await prepareTool(english, name, JSON.stringify(args));
+      if ("error" in prepared) {
+        return `Error: ${prepared.error}`;
+      }
+      try {
+        return await prepared.run();
+      } catch (error) {
+        return `Error: ${describeToolError(error, "en")}`;
+      }
+    }
+
+    expect(await callInEnglish("list_folder", {})).toBe("Root: empty.");
+    await writeNote("notes/courses.md", "- lait\n- pain\n");
+    expect(await callInEnglish("list_folder", {})).toBe("Root: 1 folder, 0 files\nnotes/");
+    expect(await callInEnglish("list_folder", { path: "notes" })).toMatch(
+      /^Folder notes: 0 folders, 1 file\nnotes\/courses\.md \(14 B, modified \d{4}-\d{2}-\d{2}\)$/,
+    );
+    expect(await callInEnglish("read_file", { path: "notes/courses.md" })).toBe(
+      "notes/courses.md (2 lines):\n- lait\n- pain",
+    );
+    expect(await callInEnglish("read_file", { path: "notes/courses.md", start_line: 3 })).toBe(
+      "Error: notes/courses.md has 2 lines",
+    );
+    expect(await callInEnglish("read_file", { path: "courses.md" })).toBe(
+      'Error: path "courses.md" has no folder: for example notes/courses.md',
+    );
+    const lines = Array.from(
+      { length: 700 },
+      (_, index) => `ligne${String(index + 1).padStart(4, "0")}`,
+    );
+    await writeNote("notes/long.md", `${lines.join("\n")}\n`);
+    expect((await callInEnglish("read_file", { path: "notes/long.md" })).split("\n")[0]).toBe(
+      "notes/long.md, lines 1 to 600 of 700 (continue with start_line=601):",
+    );
+    expect(await callInEnglish("search", { query: "beurre" })).toBe('No results for "beurre".');
+    expect(
+      await callInEnglish("edit_file", {
+        path: "notes/courses.md",
+        old_text: "beurre",
+        new_text: "x",
+      }),
+    ).toBe(
+      "Error: text not found in notes/courses.md: read the file again and copy the exact passage",
+    );
+    expect(await callInEnglish("create_folder", { path: "archives" })).toBe(
+      "Folder archives created.",
+    );
+    expect(await callInEnglish("create_folder", { path: "archives" })).toBe(
+      "Folder archives already exists.",
+    );
+
+    expect(await callInEnglish("create_project", { title: "Robot" })).toBe(
+      "Project created: projets/robot/ (projet.md, taches.md).",
+    );
+    expect(
+      await callInEnglish("add_task", { project: "robot", text: "Souder", due: "2026-10-19" }),
+    ).toBe("Task added: projets/robot/taches.md:2 - [ ] Souder @2026-10-19");
+    expect(
+      await callInEnglish("add_task", { project: "robot", text: "Vernir", due: "demain" }),
+    ).toBe('Error: argument "due": date YYYY-MM-DD expected');
+    expect(await callInEnglish("list_projects", {})).toBe(
+      "robot: Robot, status en cours, 1 open task, 1 overdue",
+    );
+    expect(await callInEnglish("list_tasks", { filter: "overdue" })).toBe(
+      "1 task:\nprojets/robot/taches.md:2 - [ ] Souder @2026-10-19",
+    );
+    expect(await callInEnglish("set_task_done", { file: "projets/robot/taches.md", line: 2 })).toBe(
+      "Task ticked: Souder",
+    );
+    expect(await callInEnglish("set_task_done", { file: "projets/robot/taches.md", line: 1 })).toBe(
+      "Error: the line is not a task, the file changed: read it again",
+    );
+  });
 });

@@ -73,20 +73,20 @@ docker run \
 
 Ces routes servent le gestionnaire de projets du miniOS. Elles exigent toutes le token.
 
-| Route                                                                         | Rôle                                                                                                                                   |
-| ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /projects?today=YYYY-MM-DD`                                              | Projets de `projets/` : titre, statut, objectif, prochaine étape, tâches ouvertes et en retard, minutes de la semaine                  |
-| `POST /projects` `{title, goal?}`                                             | Crée `projets/<slug>/` avec `projet.md` et `taches.md`                                                                                 |
-| `GET /tasks?project=&status=open\|done\|all&due=today\|overdue&today=&limit=` | Tâches triées : en retard d'abord, puis par échéance et priorité                                                                       |
-| `POST /tasks` `{project, text, due?, time?, priority?}`                       | Ajoute une ligne à `projets/<project>/taches.md`                                                                                       |
-| `POST /tasks/toggle` `{file, line, done?}`                                    | Coche ou décoche une tâche (409 si la ligne a changé entre-temps)                                                                      |
-| `POST /files/append` `{id, text}`                                             | Ajoute une ligne à un fichier en créant dossiers et fichier si besoin (boîte de réception, journal, temps)                             |
-| `GET /search?q=&folder=&limit=`                                               | Recherche insensible à la casse et aux accents                                                                                         |
-| `GET` / `PUT` / `DELETE /file?id=`                                            | Comme `/files/:folder/:name`, mais l'id passe en paramètre de requête : pas de `/` encodé dans le chemin, que certains proxys refusent |
-| `GET /firmware/manifest`, `GET /firmware/download`                            | Mise à jour du Minitel par le réseau                                                                                                   |
-| `PUT /firmware?version=1.2.0` (binaire)                                       | Publie un firmware (calcule taille et MD5)                                                                                             |
-| `POST /assistant` `{ai: {baseUrl, apiKey, model}, now?, history?, prompt}`    | Assistant avec outils : fait tourner le modèle sur les notes et diffuse sa réponse en SSE (voir plus bas)                              |
-| `POST /assistant/confirm` `{id, accept}`                                      | Réponse de l'utilisateur à une action en attente ; la conversation continue dans cette réponse, 404 après 5 min                        |
+| Route                                                                             | Rôle                                                                                                                                   |
+| --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /projects?today=YYYY-MM-DD`                                                  | Projets de `projets/` : titre, statut, objectif, prochaine étape, tâches ouvertes et en retard, minutes de la semaine                  |
+| `POST /projects` `{title, goal?}`                                                 | Crée `projets/<slug>/` avec `projet.md` et `taches.md`                                                                                 |
+| `GET /tasks?project=&status=open\|done\|all&due=today\|overdue&today=&limit=`     | Tâches triées : en retard d'abord, puis par échéance et priorité                                                                       |
+| `POST /tasks` `{project, text, due?, time?, priority?}`                           | Ajoute une ligne à `projets/<project>/taches.md`                                                                                       |
+| `POST /tasks/toggle` `{file, line, done?}`                                        | Coche ou décoche une tâche (409 si la ligne a changé entre-temps)                                                                      |
+| `POST /files/append` `{id, text}`                                                 | Ajoute une ligne à un fichier en créant dossiers et fichier si besoin (boîte de réception, journal, temps)                             |
+| `GET /search?q=&folder=&limit=`                                                   | Recherche insensible à la casse et aux accents                                                                                         |
+| `GET` / `PUT` / `DELETE /file?id=`                                                | Comme `/files/:folder/:name`, mais l'id passe en paramètre de requête : pas de `/` encodé dans le chemin, que certains proxys refusent |
+| `GET /firmware/manifest`, `GET /firmware/download`                                | Mise à jour du Minitel par le réseau                                                                                                   |
+| `PUT /firmware?version=1.2.0` (binaire)                                           | Publie un firmware (calcule taille et MD5)                                                                                             |
+| `POST /assistant` `{ai: {baseUrl, apiKey, model}, lang?, now?, history?, prompt}` | Assistant avec outils : fait tourner le modèle sur les notes et diffuse sa réponse en SSE (voir plus bas)                              |
+| `POST /assistant/confirm` `{id, accept}`                                          | Réponse de l'utilisateur à une action en attente ; la conversation continue dans cette réponse, 404 après 5 min                        |
 
 Les contenus vides sont acceptés (une note vidée peut être enregistrée).
 
@@ -117,6 +117,7 @@ projets/robot/temps.md
 `src/assistant.ts` fait tourner un modèle compatible OpenAI (chat completions avec `tools`, par défaut DigitalOcean Gradient) sur les fichiers, avec les outils de `src/assistant-tools.ts` : lister un dossier, lire (par morceaux pour un long fichier), chercher, créer ou remplacer, ajouter à la fin, modifier un passage, créer un dossier, déplacer, supprimer, lister les projets et les tâches, créer un projet, ajouter et cocher une tâche.
 
 - La clé et le modèle viennent du Minitel avec chaque question (`ai`) : rien à configurer ici, mais Bibliotek doit être servi en `https`.
+- `lang` (`fr` par défaut, ou `en`) vient aussi du Minitel : la langue de son firmware. Le modèle répond dans cette langue, et les actions, les questions de confirmation et les erreurs l'emploient aussi ; `POST /assistant/confirm` garde celle de la question. Les fichiers gardent leurs noms français (`projets/`, `taches.md`) dans les deux langues.
 - Une action qui remplace, modifie ou supprime du texte existant attend l'accord de l'utilisateur : le flux se termine sur `{"confirm": {"id", "text"}}`, et `POST /assistant/confirm` donne la réponse. Les autres actions (créer, ajouter, déplacer, cocher) s'exécutent directement.
 - La réponse suit le format des chunks d'une chat completion, plus `{"action": "..."}` à chaque outil exécuté. Un commentaire SSE part à l'ouverture puis toutes les 10 s ; quand le client raccroche, l'appel au modèle s'arrête et plus aucun outil ne tourne.
 - 8 tours d'outils au plus par question. Un modèle qui refuse `tools` (400) répond sans outils ; un modèle qui ne fait que réfléchir est relancé une fois pour sa réponse.

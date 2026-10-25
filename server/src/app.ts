@@ -300,6 +300,8 @@ function parseAssistantInput(body: unknown): AssistantInput {
       apiKey: readRequiredStringField(ai, "apiKey").trim(),
       model: readRequiredStringField(ai, "model").trim(),
     },
+    // French unless the device asks for English: older firmware sends no lang.
+    lang: values.lang === "en" ? "en" : "fr",
     ...(now !== undefined ? { now } : {}),
     history: parseAssistantHistory(values.history),
     prompt: readAssistantText(values, "prompt"),

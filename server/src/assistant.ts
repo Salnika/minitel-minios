@@ -7,6 +7,8 @@ import {
   assistantTools,
   describeToolError,
   prepareTool,
+  tr,
+  type Lang,
   type ToolContext,
 } from "./assistant-tools.js";
 import type { createStorage } from "./storage.js";
@@ -29,6 +31,8 @@ export interface AssistantTurn {
 
 export interface AssistantInput {
   ai: { baseUrl: string; apiKey: string; model: string };
+  // The device's language, for the whole conversation: its confirmations too.
+  lang: Lang;
   // The device's local time, "YYYY-MM-DD HH:MM".
   now?: string;
   history: AssistantTurn[];
@@ -72,24 +76,46 @@ const MAX_QUESTION_LENGTH = 160;
 // without a byte.
 const PING_INTERVAL_MS = 10_000;
 
-const WEEKDAYS = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
-const MONTHS = [
-  "janvier",
-  "février",
-  "mars",
-  "avril",
-  "mai",
-  "juin",
-  "juillet",
-  "août",
-  "septembre",
-  "octobre",
-  "novembre",
-  "décembre",
-];
+const WEEKDAYS: Record<Lang, string[]> = {
+  fr: ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"],
+  en: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
+};
+const MONTHS: Record<Lang, string[]> = {
+  fr: [
+    "janvier",
+    "février",
+    "mars",
+    "avril",
+    "mai",
+    "juin",
+    "juillet",
+    "août",
+    "septembre",
+    "octobre",
+    "novembre",
+    "décembre",
+  ],
+  en: [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+  ],
+};
 const nowPattern = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})$/;
 
-const NUDGE = "Donne maintenant ta réponse finale, brève, sans réfléchir davantage.";
+const NUDGE: Record<Lang, string> = {
+  fr: "Donne maintenant ta réponse finale, brève, sans réfléchir davantage.",
+  en: "Now give your final answer, briefly, without thinking any further.",
+};
 
 interface ToolCall {
   id: string;
@@ -230,7 +256,8 @@ export function createEventStream(response: ServerResponse): AssistantStream {
   };
 }
 
-function describeNow(now: string | undefined): { today: string; label: string } {
+// "mardi 20 octobre 2026, 14:32", "Tuesday 20 October 2026, 14:32".
+function describeNow(now: string | undefined, lang: Lang): { today: string; label: string } {
   const match = now !== undefined ? nowPattern.exec(now) : null;
   const fields = match?.slice(1).map((field) => Number.parseInt(field, 10));
   let [year, month, day, hours, minutes] = fields ?? [];
@@ -253,14 +280,30 @@ function describeNow(now: string | undefined): { today: string; label: string } 
     minutes = date.getMinutes();
   }
 
-  const weekday = WEEKDAYS[new Date(Date.UTC(year, month - 1, day)).getUTCDay()] ?? "";
+  const weekday = WEEKDAYS[lang][new Date(Date.UTC(year, month - 1, day)).getUTCDay()] ?? "";
+  const monthName = MONTHS[lang][month - 1] ?? "";
   return {
     today: `${year}-${pad(month)}-${pad(day)}`,
-    label: `${weekday} ${day} ${MONTHS[month - 1] ?? ""} ${year}, ${pad(hours)}:${pad(minutes)}`,
+    label: `${weekday} ${day} ${monthName} ${year}, ${pad(hours)}:${pad(minutes)}`,
   };
 }
 
-function systemPrompt(nowLabel: string): string {
+// The same rules in both languages; the data keeps its French names in English too.
+function systemPrompt(lang: Lang, nowLabel: string): string {
+  if (lang === "en") {
+    return [
+      `You are the miniOS assistant, shown on a 40-column Minitel. It is ${nowLabel}.`,
+      "You have access to the user's notes, text files (.md, .txt) organised in folders, through tools:",
+      "- use them to read, search, create or edit their notes rather than guessing or asking them;",
+      "- read a file before editing it; for a small change, prefer edit_file, and append_to_file to add at the end;",
+      "- paths are relative, without a leading /: notes/courses.md, projets/robot/taches.md;",
+      "- projets/<name>/ holds projet.md (title, Statut, Objectif, Prochaine etape), taches.md (one task per line: - [ ] text !! @YYYY-MM-DD HH:MM) and temps.md;",
+      "- inbox/inbox.md receives the quick captures, journal/YYYY-MM-DD.md the journal of the day;",
+      "- some actions need the user's approval: if they refuse, do not try again.",
+      "A previous answer may start with (Tools used: ...): it is a reminder, do not write it yourself.",
+      "Answer in English, in plain text without markdown, in 400 characters at most: say what you did or found.",
+    ].join("\n");
+  }
   return [
     `Tu es l'assistant du miniOS, affiché sur un Minitel de 40 colonnes. Nous sommes le ${nowLabel}.`,
     "Tu as accès aux notes de l'utilisateur, des fichiers texte (.md, .txt) rangés en dossiers, grâce à des outils :",
@@ -276,19 +319,21 @@ function systemPrompt(nowLabel: string): string {
 }
 
 function buildMessages(input: AssistantInput, nowLabel: string): ChatMessage[] {
-  const messages: ChatMessage[] = [{ role: "system", content: systemPrompt(nowLabel) }];
+  const messages: ChatMessage[] = [{ role: "system", content: systemPrompt(input.lang, nowLabel) }];
   for (const turn of input.history) {
     messages.push({ role: "user", content: turn.user });
     const actions = (turn.actions ?? "")
       .split("\n")
       .map((line) => line.trim())
       .filter((line) => line.length > 0);
+    const reminder = tr(
+      input.lang,
+      `(Outils utilisés : ${actions.join(" ; ")})`,
+      `(Tools used: ${actions.join("; ")})`,
+    );
     messages.push({
       role: "assistant",
-      content:
-        actions.length > 0
-          ? `(Outils utilisés : ${actions.join(" ; ")})\n${turn.assistant}`
-          : turn.assistant,
+      content: actions.length > 0 ? `${reminder}\n${turn.assistant}` : turn.assistant,
     });
   }
   messages.push({ role: "user", content: input.prompt });
@@ -469,32 +514,36 @@ function connectionError(error: unknown): unknown {
   return new UpstreamError(-1, error instanceof Error ? error.message : "unreachable");
 }
 
-// Short French message for the Minitel's status line.
-function describeFailure(error: unknown): string {
+// Short message for the Minitel's status line, in its language.
+function describeFailure(error: unknown, lang: Lang): string {
   if (!(error instanceof UpstreamError)) {
-    return "Erreur de l'assistant";
+    return tr(lang, "Erreur de l'assistant", "Assistant error");
   }
   switch (error.status) {
     case -1:
-      return "IA injoignable";
+      return tr(lang, "IA injoignable", "AI unreachable");
     case 0:
-      return "IA erreur pendant la reponse";
+      return tr(lang, "IA erreur pendant la reponse", "AI error during the reply");
     case 401:
     case 403:
-      return "IA cle invalide";
+      return tr(lang, "IA cle invalide", "AI invalid key");
     case 404:
-      return "IA modele ou URL introuvable";
+      return tr(lang, "IA modele ou URL introuvable", "AI model or URL not found");
     case 408:
     case 504:
-      return "IA timeout";
+      return tr(lang, "IA timeout", "AI timeout");
     case 429:
-      return "IA quota atteint";
+      return tr(lang, "IA quota atteint", "AI quota reached");
     case 400:
     case 413:
     case 422:
-      return `IA requete refusee (${error.status})`;
+      return tr(
+        lang,
+        `IA requete refusee (${error.status})`,
+        `AI request refused (${error.status})`,
+      );
     default:
-      return `IA erreur serveur (${error.status})`;
+      return tr(lang, `IA erreur serveur (${error.status})`, `AI server error (${error.status})`);
   }
 }
 
@@ -506,7 +555,7 @@ export function createAssistant(options: AssistantOptions) {
   function requestMessages(session: Session, nudge: boolean): ChatMessage[] {
     return session.messages.map((message, index) => {
       if (index === 0 && nudge && message.role === "system") {
-        return { role: "system", content: `${message.content}\n${NUDGE}` };
+        return { role: "system", content: `${message.content}\n${NUDGE[session.input.lang]}` };
       }
       if (
         !session.sendReasoning &&
@@ -604,11 +653,12 @@ export function createAssistant(options: AssistantOptions) {
 
   // The result for the model, or undefined when the conversation stops (the user left).
   async function runTool(session: Session, call: ToolCall): Promise<string | undefined> {
+    const { lang } = session.input;
     const prepared = await prepareTool(session.context, call.name, call.arguments);
     if ("error" in prepared) {
       session.log.info({ tool: call.name, error: prepared.error }, "assistant tool refused");
-      session.stream.action(`${prepared.label} (echec)`);
-      return `Erreur : ${prepared.error}`;
+      session.stream.action(tr(lang, `${prepared.label} (echec)`, `${prepared.label} (error)`));
+      return tr(lang, `Erreur : ${prepared.error}`, `Error: ${prepared.error}`);
     }
 
     if (prepared.question !== undefined) {
@@ -618,8 +668,12 @@ export function createAssistant(options: AssistantOptions) {
         return undefined;
       }
       if (!accepted) {
-        session.stream.action(`${prepared.label} (refuse)`);
-        return "L'utilisateur a refusé cette action : ne la refais pas.";
+        session.stream.action(tr(lang, `${prepared.label} (refuse)`, `${prepared.label} (denied)`));
+        return tr(
+          lang,
+          "L'utilisateur a refusé cette action : ne la refais pas.",
+          "The user refused this action: do not do it again.",
+        );
       }
     }
     if (session.stream.signal.aborted) {
@@ -632,14 +686,15 @@ export function createAssistant(options: AssistantOptions) {
       session.stream.action(prepared.label);
       return result;
     } catch (error) {
-      const message = describeToolError(error);
+      const message = describeToolError(error, lang);
       session.log.info({ tool: call.name, error: message }, "assistant tool failed");
-      session.stream.action(`${prepared.label} (echec)`);
-      return `Erreur : ${message}`;
+      session.stream.action(tr(lang, `${prepared.label} (echec)`, `${prepared.label} (error)`));
+      return tr(lang, `Erreur : ${message}`, `Error: ${message}`);
     }
   }
 
   async function converse(session: Session): Promise<void> {
+    const { lang } = session.input;
     let useTools = true;
     let nudged = false;
     let round = 0;
@@ -663,7 +718,7 @@ export function createAssistant(options: AssistantOptions) {
             "assistant without tools",
           );
           useTools = false;
-          session.stream.action("modele sans outils");
+          session.stream.action(tr(lang, "modele sans outils", "no tool support"));
           continue;
         }
         const reasoningSent = session.messages.some(
@@ -692,7 +747,11 @@ export function createAssistant(options: AssistantOptions) {
           const result =
             index < MAX_CALLS_PER_ROUND
               ? await runTool(session, call)
-              : "Erreur : trop d'appels a la fois, refais celui-ci ensuite.";
+              : tr(
+                  lang,
+                  "Erreur : trop d'appels a la fois, refais celui-ci ensuite.",
+                  "Error: too many calls at once, retry this one afterwards.",
+                );
           if (result === undefined) {
             return;
           }
@@ -708,7 +767,7 @@ export function createAssistant(options: AssistantOptions) {
           nudged = true;
           continue;
         }
-        session.stream.fail("Reponse vide");
+        session.stream.fail(tr(lang, "Reponse vide", "Empty reply"));
         return;
       }
       session.stream.finish(turn.finishReason === "length" ? "length" : "stop");
@@ -728,15 +787,20 @@ export function createAssistant(options: AssistantOptions) {
         { error: error instanceof Error ? error.message : String(error) },
         "assistant failed",
       );
-      session.stream.fail(describeFailure(error));
+      session.stream.fail(describeFailure(error, session.input.lang));
     }
   }
 
   function start(input: AssistantInput, stream: AssistantStream, log: FastifyBaseLogger): void {
-    const now = describeNow(input.now);
+    const now = describeNow(input.now, input.lang);
     const session: Session = {
       input,
-      context: { storage: options.storage, workspace: options.workspace, today: now.today },
+      context: {
+        storage: options.storage,
+        workspace: options.workspace,
+        today: now.today,
+        lang: input.lang,
+      },
       stream,
       log,
       messages: buildMessages(input, now.label),
@@ -750,7 +814,8 @@ export function createAssistant(options: AssistantOptions) {
     return pending.has(id);
   }
 
-  // Resumes the conversation waiting for `id` on a new stream; false when it is gone.
+  // Resumes the conversation waiting for `id` on a new stream, in the language it began in;
+  // false when it is gone.
   function confirm(id: string, accept: boolean, stream: AssistantStream): boolean {
     const entry = pending.get(id);
     if (entry === undefined) {
