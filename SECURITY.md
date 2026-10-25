@@ -2,7 +2,7 @@
 
 ## Reporting a vulnerability
 
-Please report vulnerabilities privately through [GitHub's private vulnerability reporting](https://github.com/Salnika/minitel-minios/security/advisories/new), not in a public issue. Only the latest `main` is maintained.
+Please report vulnerabilities privately through [GitHub's private vulnerability reporting](https://github.com/Salnika/minitel-minios/security/advisories/new), not in a public issue. Only the latest `master` is maintained.
 
 ## Before deploying
 

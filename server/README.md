@@ -59,7 +59,7 @@ docker run \
 
 ## Déploiement Coolify
 
-1. Dans Coolify : **+ New → Application**, choisis ce dépôt Git (`minitel-minios`, ou ton fork) et la branche `main`.
+1. Dans Coolify : **+ New → Application**, choisis ce dépôt Git (`minitel-minios`, ou ton fork) et la branche `master`.
 2. **Build Pack** : `Dockerfile`, **Base Directory** : `/server`, **Port exposé** : `3000`. Les **Watch Paths** `server/**` évitent un redéploiement à chaque commit du firmware.
 3. **Variables d'environnement** :
    - `API_TOKEN` (secret) : le même que le « Docs token » réglé sur le Minitel.

@@ -4,7 +4,7 @@ Le serveur du miniOS est **Bibliotek**, dans `server/` : une petite API Fastify 
 
 ## Bibliotek sur Coolify
 
-1. **+ New → Application**, depuis ce dépôt Git (`https://github.com/Salnika/minitel-minios`, ou ton fork), branche `main`.
+1. **+ New → Application**, depuis ce dépôt Git (`https://github.com/Salnika/minitel-minios`, ou ton fork), branche `master`.
 2. **Build Pack** : `Dockerfile`, **Base Directory** : `/server`, **Port exposé** : `3000`. Pour ne redéployer que quand le serveur change, mets `server/**` dans les **Watch Paths**.
 3. **Variables d'environnement** :
    - `API_TOKEN` (secret) : le même que `Docs token` sur le Minitel. Il sert aussi de mot de passe pour les mises à jour par le réseau local.
@@ -15,7 +15,7 @@ Le serveur du miniOS est **Bibliotek**, dans `server/` : une petite API Fastify 
 
 ### Depuis l'ancien dépôt `bibliotek`
 
-Le dépôt `bibliotek` publié n'a que `/folders` et `/files` : ni projets, ni tâches, ni recherche, ni `/firmware`. Le Minitel y répond « Pas de /firmware: serveur a redeployer » (« Aucune version publiee » avant la 1.2.1) et `publish_firmware.sh` s'arrête sur un 404. Plutôt que de créer une deuxième app, change la source de l'app existante : ce dépôt, branche `main`, Base Directory `/server`. Garde le même volume sur `/data` (les notes restent dans `/data/files`), le même `API_TOKEN` et le même domaine, puis redéploie.
+Le dépôt `bibliotek` publié n'a que `/folders` et `/files` : ni projets, ni tâches, ni recherche, ni `/firmware`. Le Minitel y répond « Pas de /firmware: serveur a redeployer » (« Aucune version publiee » avant la 1.2.1) et `publish_firmware.sh` s'arrête sur un 404. Plutôt que de créer une deuxième app, change la source de l'app existante : ce dépôt, branche `master`, Base Directory `/server`. Garde le même volume sur `/data` (les notes restent dans `/data/files`), le même `API_TOKEN` et le même domaine, puis redéploie.
 
 Pour savoir quel serveur répond, avec le token :
 
